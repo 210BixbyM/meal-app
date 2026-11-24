@@ -5,6 +5,13 @@ import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Environment;
 import android.view.View;
+import android.view.Gravity;
+import android.widget.FrameLayout;
+import android.graphics.Typeface;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.io.InputStream;
+import java.io.ByteArrayOutputStream;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -47,6 +54,10 @@ public class GroceryScannerActivity extends ComponentActivity {
 
     private PreviewView previewView;
     private TextView status;
+    private FrameLayout previewContainer;
+    private LinearLayout resultCard;
+    private String foodBaseApiKey = "";
+    private JSONObject matchedProduct;
     private Button frontButton, labelButton, finishButton;
     private ImageCapture imageCapture;
     private BarcodeScanner barcodeScanner;
@@ -65,6 +76,8 @@ public class GroceryScannerActivity extends ComponentActivity {
         super.onCreate(state);
 
         cameraExecutor = Executors.newSingleThreadExecutor();
+        foodBaseApiKey = getIntent().getStringExtra("foodBaseApiKey");
+        if (foodBaseApiKey == null) foodBaseApiKey = "";
 
         BarcodeScannerOptions options =
             new BarcodeScannerOptions.Builder()
@@ -116,8 +129,29 @@ public class GroceryScannerActivity extends ComponentActivity {
         status.setPadding(0, 12, 0, 12);
         root.addView(status);
 
+        previewContainer = new FrameLayout(this);
         previewView = new PreviewView(this);
-        root.addView(previewView, new LinearLayout.LayoutParams(
+        previewContainer.addView(previewView, new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+
+        resultCard = new LinearLayout(this);
+        resultCard.setOrientation(LinearLayout.VERTICAL);
+        resultCard.setPadding(20, 18, 20, 18);
+        resultCard.setBackgroundColor(Color.WHITE);
+        resultCard.setElevation(16);
+        resultCard.setVisibility(View.GONE);
+
+        FrameLayout.LayoutParams cardParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.BOTTOM
+        );
+        cardParams.setMargins(12, 12, 12, 12);
+        previewContainer.addView(resultCard, cardParams);
+
+        root.addView(previewContainer, new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
         ));
 
@@ -208,13 +242,14 @@ public class GroceryScannerActivity extends ComponentActivity {
                     String value = item.getRawValue();
                     if (value != null && !value.trim().isEmpty()) {
                         barcode = value.trim();
+                        String scanned = barcode;
                         runOnUiThread(() -> {
-                            status.setText("Barcode found: " + barcode
-                                + "\nNow photograph the package and nutrition label.");
+                            status.setText("Barcode detected. Looking up product…");
                             frontButton.setEnabled(true);
                             labelButton.setEnabled(true);
                             finishButton.setEnabled(true);
                         });
+                        lookupFoodBase(scanned);
                         break;
                     }
                 }
@@ -226,6 +261,142 @@ public class GroceryScannerActivity extends ComponentActivity {
                 processing.set(false);
                 proxy.close();
             });
+    }
+
+
+    private void lookupFoodBase(String code) {
+        if (foodBaseApiKey.trim().isEmpty()) {
+            runOnUiThread(() -> status.setText(
+                "Barcode detected. Add your FoodBase key in Settings to look it up."
+            ));
+            return;
+        }
+
+        cameraExecutor.execute(() -> {
+            HttpURLConnection connection = null;
+            try {
+                URL url = new URL(
+                    "https://foodbase.dev/v1/foods/barcode/" + code + "?lang=en"
+                );
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(12000);
+                connection.setReadTimeout(15000);
+                connection.setRequestProperty("X-API-Key", foodBaseApiKey.trim());
+                connection.setRequestProperty("Accept", "application/json");
+
+                int statusCode = connection.getResponseCode();
+                InputStream input = statusCode >= 200 && statusCode < 300
+                    ? connection.getInputStream() : connection.getErrorStream();
+
+                ByteArrayOutputStream output = new ByteArrayOutputStream();
+                if (input != null) {
+                    byte[] buffer = new byte[4096];
+                    int count;
+                    while ((count = input.read(buffer)) != -1)
+                        output.write(buffer, 0, count);
+                    input.close();
+                }
+
+                if (statusCode == 404) {
+                    runOnUiThread(() -> status.setText(
+                        "No FoodBase match. You can still photograph the package."
+                    ));
+                    return;
+                }
+                if (statusCode < 200 || statusCode >= 300)
+                    throw new Exception("FoodBase error " + statusCode);
+
+                JSONObject response = new JSONObject(output.toString("UTF-8"));
+                JSONObject product = response.optJSONObject("data");
+                if (product == null) product = response;
+
+                JSONObject macros = product.optJSONObject("nutrition_summary");
+                if (macros == null) macros = product.optJSONObject("macros");
+                if (macros == null) macros = new JSONObject();
+
+                JSONObject normalized = new JSONObject();
+                normalized.put("barcode", code);
+                normalized.put("name", product.optString("name_default",
+                    product.optString("name_localized",
+                    product.optString("product_name", "Food product"))));
+                normalized.put("brand", product.optString("brand", ""));
+                normalized.put("source", "FoodBase");
+                normalized.put("basis", "per 100 g");
+                normalized.put("calories", macros.opt("energy_kcal"));
+                normalized.put("protein", macros.opt("proteins_g"));
+                normalized.put("carbs", macros.opt("carbs_g"));
+                normalized.put("fat", macros.opt("fat_g"));
+                normalized.put("fiber", macros.opt("fiber_g"));
+                normalized.put("sugar", macros.opt("sugars_g"));
+                normalized.put("satFat", macros.opt("saturated_fat_g"));
+                normalized.put("sodium", macros.opt("sodium_mg"));
+
+                matchedProduct = normalized;
+                runOnUiThread(() -> showProductCard(normalized));
+
+            } catch (Exception e) {
+                runOnUiThread(() -> status.setText(
+                    "Product lookup failed: " + e.getMessage()
+                ));
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        });
+    }
+
+    private void showProductCard(JSONObject product) {
+        resultCard.removeAllViews();
+
+        TextView heading = new TextView(this);
+        heading.setText("PRODUCT FOUND");
+        heading.setTextColor(Color.rgb(35, 125, 83));
+        heading.setTypeface(null, Typeface.BOLD);
+        resultCard.addView(heading);
+
+        TextView name = new TextView(this);
+        String brand = product.optString("brand", "");
+        name.setText(product.optString("name", "Food product")
+            + (brand.isEmpty() ? "" : "\n" + brand));
+        name.setTextColor(Color.BLACK);
+        name.setTextSize(19);
+        name.setTypeface(null, Typeface.BOLD);
+        name.setPadding(0, 8, 0, 8);
+        resultCard.addView(name);
+
+        TextView nutrition = new TextView(this);
+        nutrition.setText("Per 100 g\n"
+            + product.optString("calories", "—") + " kcal"
+            + "  ·  Protein " + product.optString("protein", "—") + " g"
+            + "  ·  Carbs " + product.optString("carbs", "—") + " g"
+            + "  ·  Fat " + product.optString("fat", "—") + " g");
+        nutrition.setTextColor(Color.DKGRAY);
+        resultCard.addView(nutrition);
+
+        Button use = new Button(this);
+        use.setText("Use this product");
+        use.setOnClickListener(v -> finishWithResult());
+        resultCard.addView(use);
+
+        Button dismiss = new Button(this);
+        dismiss.setText("Dismiss · scan another");
+        dismiss.setOnClickListener(v -> {
+            resultCard.setVisibility(View.GONE);
+            matchedProduct = null;
+            barcode = "";
+            frontPhoto = "";
+            labelPhoto = "";
+            frontText = "";
+            labelText = "";
+            frontButton.setEnabled(false);
+            labelButton.setEnabled(false);
+            finishButton.setEnabled(false);
+            status.setText("Camera active. Point at another barcode.");
+        });
+        resultCard.addView(dismiss);
+
+        resultCard.setVisibility(View.VISIBLE);
+        status.setText("Product found. Camera remains active.");
     }
 
     private File photoFile(String suffix) throws Exception {
@@ -327,6 +498,8 @@ public class GroceryScannerActivity extends ComponentActivity {
             result.put("labelPhoto", labelPhoto);
             result.put("frontText", frontText);
             result.put("labelText", labelText);
+            if (matchedProduct != null)
+                result.put("product", matchedProduct);
 
             setResult(RESULT_OK,
                 new android.content.Intent().putExtra("groceryResult", result.toString()));

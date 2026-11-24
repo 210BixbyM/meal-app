@@ -119,7 +119,7 @@
       </div>
       <div class="card" style="padding:13px;margin:15px 0 8px;background:#f6faf6;box-shadow:none">
         <h3 style="font-size:.98rem;margin:0 0 5px">Search foods</h3>
-        <p class="muted" style="font-size:.8rem;margin:0 0 9px">Search Open Food Facts and USDA FoodData Central. Nutrition values are shown per 100 g when available.</p>
+        <p class="muted" style="font-size:.8rem;margin:0 0 9px">Search FoodBase for foods and nutrition information. Nutrition values are shown per 100 g when available.</p>
         <input id="foodSearch" placeholder="Search e.g. banana, oats, yogurt">
         <button class="btn secondary" type="button" id="searchFoodBtn" style="margin-top:8px;width:100%">Search food databases</button>
         <div id="foodSearchResults" class="product"></div>
@@ -219,10 +219,15 @@
     <div class="actions"><button class="btn warn" id="deleteAll">Delete all meal entries</button><button class="btn warn" id="deleteWeights">Delete weight entries</button></div>
   </div>
   <div class="card">
-    <h3 style="margin:0 0 5px">USDA FoodData Central</h3>
-    <p class="muted" style="font-size:.83rem">Your free USDA API key enables USDA food search. It is stored only on this device.</p>
-    <label for="usdaKey">USDA API key</label><input id="usdaKey" type="password" placeholder="Paste your API key">
-    <div class="actions"><button class="btn" id="saveUsdaKey">Save API key</button><a class="link" href="https://api.data.gov/signup/" target="_blank" rel="noopener">Get a free key</a></div>
+    <h3 style="margin:0 0 5px">FoodBase</h3>
+    <p class="muted" style="font-size:.83rem">Food search and barcode lookup. Your API key is stored on this device.</p>
+    <label for="foodBaseKey">FoodBase API key</label>
+    <input id="foodBaseKey" type="password" autocomplete="off" placeholder="Paste your API key">
+    <div class="actions">
+      <button class="btn" id="saveFoodBaseKey">Save API key</button>
+      <a class="link" href="https://foodbase.dev/" target="_blank" rel="noopener">Get a free key</a>
+    </div>
+    <p class="muted" id="foodBaseKeyStatus"></p>
   </div>
   
 <div class="card" id="mjExtras">
@@ -292,7 +297,7 @@
 <label><input type="checkbox" id="mjHideStreak" style="width:auto"> Hide streak display</label>
 <p class="muted">A streak is just an optional record of days with entries. Missing a day is not a failure.</p>
 </div>
-<div class="card"><h3 style="margin:0 0 5px">About Meal Journal</h3><p class="muted" style="font-size:.83rem;margin-bottom:0">Food search combines Open Food Facts and USDA FoodData Central. Database values can vary in completeness and accuracy. Meal photos and journal records are saved locally on this device.</p></div>
+<div class="card"><h3 style="margin:0 0 5px">About Meal Journal</h3><p class="muted" style="font-size:.83rem;margin-bottom:0">Food search and barcode lookup use FoodBase. Database values can vary in completeness and accuracy. Meal photos and journal records are saved locally on this device.</p></div>
 </section>
 </main>
 </div>
@@ -409,9 +414,15 @@ function download(blob,name){const a=document.createElement('a');a.href=URL.crea
 $('importFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text()),arr=Array.isArray(d)?d:d.entries;if(!Array.isArray(arr))throw Error();const m=new Map(entries.map(x=>[x.id,x]));arr.filter(x=>x&&x.id&&x.date&&x.foods).forEach(x=>m.set(x.id,x));entries=[...m.values()];if(Array.isArray(d.weights)){const wm=new Map(weights.map(x=>[x.id,x]));d.weights.filter(x=>x&&x.id&&x.date&&Number(x.value)>0).forEach(x=>wm.set(x.id,x));weights=[...wm.values()];persistWeights()}persist();render();renderHome();renderWeights();alert('Backup imported.')}catch{alert('That backup could not be read.')}e.target.value=''};
 $('deleteAll').onclick=()=>{if(confirm('Permanently delete all meal entries? Export a backup first if you want to keep them.')){entries=[];persist();render();renderHome()}};
 $('deleteWeights').onclick=()=>{if(confirm('Permanently delete all weight entries?')){weights=[];persistWeights();renderWeights()}};
-$('saveUsdaKey').onclick=()=>{localStorage.setItem('mealJournalUsdaKey',$('usdaKey').value.trim());alert('USDA API key saved on this device.')};
-$('usdaKey').value=localStorage.getItem('mealJournalUsdaKey')||'';
-$('searchFoodBtn').onclick=()=>{const q=$('foodSearch').value.trim();if(!q){alert('Enter a food to search.');return}const box=$('foodSearchResults');box.className='product show';box.textContent='Searching Open Food Facts and USDA FoodData Central…';if(window.MealJournalAndroid&&MealJournalAndroid.searchFoods){MealJournalAndroid.searchFoods(q,localStorage.getItem('mealJournalUsdaKey')||'')}else{box.textContent='Food database search is available in the installed Android app.'}};
+$('saveFoodBaseKey').onclick=()=>{
+ const key=$('foodBaseKey').value.trim();
+ if(key)localStorage.setItem('mealJournalFoodBaseKey',key);
+ else localStorage.removeItem('mealJournalFoodBaseKey');
+ $('foodBaseKeyStatus').textContent=key?'FoodBase API key saved on this device.':'FoodBase API key cleared.';
+};
+$('foodBaseKey').value=localStorage.getItem('mealJournalFoodBaseKey')||'';
+
+$('searchFoodBtn').onclick=()=>{const q=$('foodSearch').value.trim();if(!q){alert('Enter a food to search.');return}const box=$('foodSearchResults');box.className='product show';box.textContent='Searching FoodBase…';if(window.MealJournalAndroid&&MealJournalAndroid.searchFoods){MealJournalAndroid.searchFoods(q,localStorage.getItem('mealJournalFoodBaseKey')||'')}else{box.textContent='Food database search is available in the installed Android app.'}};
 
 let naturalActive=false;
 let naturalQueue=[];
@@ -517,7 +528,7 @@ function searchNextNaturalFood(){
  }
  MealJournalAndroid.searchFoods(
   naturalCurrent.food,
-  localStorage.getItem('mealJournalUsdaKey')||''
+  localStorage.getItem('mealJournalFoodBaseKey')||''
  );
 }
 
@@ -545,7 +556,7 @@ function groceryAsFood(item){
  }
  return out;
 }
-window.onFoodSearch=raw=>{
+window.onFoodSearch=(raw,error)=>{
  let list=[];
  try{list=JSON.parse(raw)}catch{}
  if(naturalActive && naturalCurrent){
@@ -555,13 +566,18 @@ window.onFoodSearch=raw=>{
   searchNextNaturalFood();
   return;
  }
+ const box=$('foodSearchResults');
+ if(error){
+  box.className='product show';
+  box.textContent='FoodBase error: '+String(error);
+  return;
+ }
  const query=String($('foodSearch')?.value||'').trim().toLowerCase();
  let groceries=[];
  try{groceries=JSON.parse(localStorage.getItem('mj_groceries_v1')||'[]')}catch{}
  const local=groceries.filter(x=>!query||[x.name,x.brand,x.variant,x.barcode].some(v=>String(v||'').toLowerCase().includes(query))).map(groceryAsFood);
  list=[...local,...list];
  window.foodSearchItems=list;
- const box=$('foodSearchResults');
  box.className='product show';
  if(!list.length){
   box.textContent='No results found. Try another search.';
@@ -1093,7 +1109,7 @@ renderLibrary();renderRecipes();renderUnits();renderStreak();
   $('crumbScanBtn').addEventListener('click', () => {
     $('crumbScanStatus').textContent = 'Opening camera…';
     if (window.MealJournalAndroid && MealJournalAndroid.scanGrocery) {
-      MealJournalAndroid.scanGrocery();
+      MealJournalAndroid.scanGrocery(localStorage.getItem('mealJournalFoodBaseKey')||'');
     } else {
       $('crumbScanStatus').textContent = 'Native scanner is not available on this device.';
     }
@@ -1133,7 +1149,24 @@ renderLibrary();renderRecipes();renderUnits();renderStreak();
         }
       } else {
         $('crumbScanStatus').textContent = 'Scan complete. Check the extracted details before saving.';
-        showReview(parseOCR(result));
+        if (result.product) {
+          const p = result.product;
+          showReview({
+            barcode: result.barcode || p.barcode || '',
+            name: p.name || '',
+            brand: p.brand || '',
+            basis: '100g',
+            calories: p.calories ?? '',
+            protein: p.protein ?? '',
+            carbs: p.carbs ?? '',
+            fat: p.fat ?? '',
+            fiber: p.fiber ?? '',
+            sugar: p.sugar ?? '',
+            sodium: p.sodium ?? ''
+          });
+        } else {
+          showReview(parseOCR(result));
+        }
       }
     } catch (error) {
       $('crumbScanStatus').textContent = 'Could not read the scan result. Please try again.';
@@ -1286,6 +1319,9 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
   [...unitSelect.options].forEach(o=>{if(!['g','ml','oz'].includes(o.value))o.remove()});
  }
  ['mjCustomUnits','mjSaveUnit','mjCustomUnitName','mjCustomUnitGrams'].forEach(id=>$(id)?.classList.add('legacy-hidden'));
+ const customUnitsCard=$('mjCustomUnitName')?.closest('.card');
+ if(customUnitsCard)customUnitsCard.classList.add('legacy-hidden');
+
 
  // Diary calendar is collapsed until the date control is tapped.
  if(calendarCard){
@@ -1317,6 +1353,9 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
  });
  // CSV export is not part of the redesigned data tools.
  $('mjCSV')?.classList.add('legacy-hidden');
+ const csvCard=$('mjCSV')?.closest('.card');
+ if(csvCard)csvCard.classList.add('legacy-hidden');
+
 
  // Settings header: name and theme control together.
  const profileHeading=settings.querySelector('.section-head');
@@ -1338,6 +1377,8 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
  }
  // Hide the old separate dark-mode card/control if the switch was moved.
  const darkToggle=$('mjDark');
+ const appearanceCard=darkToggle?.closest('.card');
+ if(appearanceCard && nameInput?.closest('.card')!==appearanceCard)appearanceCard.classList.add('legacy-hidden');
  if(darkToggle)darkToggle.addEventListener('change',()=>document.body.classList.toggle('mj-dark',darkToggle.checked));
  const savedDark=localStorage.getItem('mj_dark_v1')==='true';
  document.body.classList.toggle('mj-dark',savedDark);
@@ -1348,21 +1389,10 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
   const toggle=()=>{const next=!document.body.classList.contains('mj-dark');document.body.classList.toggle('mj-dark',next);localStorage.setItem('mj_dark_v1',String(next));if(darkToggle)darkToggle.checked=next};
   flower.addEventListener('click',toggle);flower.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle()}});
  }
- // Move data controls into a clearly labelled, collapsible section at the bottom of Settings.
- const dataIds=['exportBtn','importFile','deleteAll','deleteWeights','usdaKey','saveUsdaKey'];
- const dataNodes=dataIds.map(id=>$(id)).filter(Boolean);
- if(dataNodes.length){
-  const details=make('details','settings-details');
-  details.innerHTML='<summary>Data management & backups</summary><p class="muted" style="font-size:.82rem">Back up your journal regularly. Backups include your saved data and API key; keep the file private.</p>';
-  const body=make('div','');
-  dataNodes.forEach(node=>{
-   const label=document.querySelector(`label[for="${node.id}"]`);
-   if(label)body.appendChild(label);
-   body.appendChild(node);
-  });
-  details.appendChild(body);
-  settings.appendChild(details);
- }
+
+ // Hide the replaced legacy data section.
+ const oldDataCard=$('exportBtn')?.closest('.card');
+ if(oldDataCard)oldDataCard.classList.add('legacy-hidden');
 
  // Add a water-goal slider directly under the water tracker, using the existing save logic.
  const waterGoal=$('mjWaterGoal');
@@ -1382,10 +1412,20 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
   waterGoal.addEventListener('change',update);
   if(status)status.classList.add('legacy-hidden');
   if(value)value.textContent=`Goal: ${Number(waterGoal.value||2000).toLocaleString()} ml`;
+  const waterCard=$('mjWaterTotal')?.closest('.card');
+  const oldWaterCard=waterGoal.closest('.card');
+  if(waterCard && oldWaterCard && waterCard!==oldWaterCard){
+   if(label)waterCard.appendChild(label);
+   waterCard.appendChild(waterGoal);
+   waterCard.appendChild(value);
+   oldWaterCard.classList.add('legacy-hidden');
+  }
  }
 
- // New tab actions call the original switchTab() implementation.
- document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>window.switchTab?.(b.dataset.go)));
+ // Wire the replacement bottom navigation to the original tab switcher.
+ document.querySelectorAll('.bottom button[data-tab]').forEach(b=>b.addEventListener('click',()=>window.switchTab(b.dataset.tab)));
+ // Quick actions also use the original tab switcher.
+ document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>window.switchTab(b.dataset.go)));
  // Keep the Meals panel title clear.
  const mealHead=meals.querySelector('.section-head');
  if(mealHead){const title=mealHead.querySelector('h2');if(title)title.textContent='Meals';}
