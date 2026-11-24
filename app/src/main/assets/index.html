@@ -39,6 +39,7 @@
     <div class="macro"><span><i class="dot"></i>Protein</span><strong id="homeMacroProtein">0 g</strong></div>
     <div class="macro"><span><i class="dot"></i>Carbs</span><strong id="homeMacroCarbs">0 g</strong></div>
     <div class="macro"><span><i class="dot"></i>Fat</span><strong id="homeMacroFat">0 g</strong></div>
+    <div class="macro"><span><i class="dot"></i>Fibre</span><strong id="homeMacroFiber">0 g</strong></div>
   </div></div>
   <div class="section-head"><h2>Today's meals</h2><button class="btn secondary" type="button" onclick="switchTab('diary')">Open diary</button></div>
   <div class="card" id="homeMealPreview"><div class="empty">Your meal entries will appear here.</div></div>
@@ -55,6 +56,8 @@
       <div class="macro"><span><i class="dot"></i>Calories</span><strong id="dayCalories">0</strong><span>kcal</span></div>
       <div class="macro"><span><i class="dot"></i>Protein</span><strong id="dayProtein">0 g</strong></div>
       <div class="macro"><span><i class="dot"></i>Carbs</span><strong id="dayCarbs">0 g</strong></div>
+      <div class="macro"><span><i class="dot"></i>Fat</span><strong id="dayFat">0 g</strong></div>
+      <div class="macro"><span><i class="dot"></i>Fibre</span><strong id="dayFiber">0 g</strong></div>
     </div>
     <p class="muted" style="font-size:.76rem;margin:12px 0 0">Values reflect only information entered or supplied by a food database; some listings may be incomplete.</p>
   </div>
@@ -92,6 +95,7 @@
         <div><label for="mealProtein">Protein (g)</label><input id="mealProtein" type="number" min="0" step="0.1" placeholder="Optional"></div>
         <div><label for="mealCarbs">Carbohydrates (g)</label><input id="mealCarbs" type="number" min="0" step="0.1" placeholder="Optional"></div>
         <div><label for="mealFat">Fat (g)</label><input id="mealFat" type="number" min="0" step="0.1" placeholder="Optional"></div>
+        <div><label for="mealFiber">Fibre (g)</label><input id="mealFiber" type="number" min="0" step="0.1" placeholder="Optional"></div>
       </div>
       <label for="photo">Meal photo (optional)</label><input id="photo" type="file" accept="image/*" capture="environment"><img id="preview" class="photo" alt="Selected meal photo preview">
       <label for="notes">Notes (optional)</label><textarea id="notes" placeholder="Anything you want to remember about this meal…"></textarea>
@@ -194,13 +198,13 @@ function fmt(s){const d=new Date(s);return isNaN(d)?s:d.toLocaleTimeString([],{h
 function fmtNum(n){return (Math.round((Number(n)||0)*10)/10).toString()}
 function switchTab(id){document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===id));document.querySelectorAll('.bottom button').forEach(b=>b.classList.toggle('active',b.dataset.tab===id));if(id==='weight')renderWeights();if(id==='home')renderHome()}
 document.querySelectorAll('.bottom button').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
-function reset(){ $('mealForm').reset();$('editId').value='';$('formTitle').textContent='Add a meal';$('saveBtn').textContent='Save meal';$('mealDate').value=localDateTime();currentPhoto='';$('preview').style.display='none';$('preview').src='';$('foodSearchResults').className='product';$('foodSearchResults').innerHTML='';['mealCalories','mealProtein','mealCarbs','mealFat'].forEach(id=>$(id).value='');$('servingGrams').value='100'}
+function reset(){ $('mealForm').reset();$('editId').value='';$('formTitle').textContent='Add a meal';$('saveBtn').textContent='Save meal';$('mealDate').value=localDateTime();currentPhoto='';$('preview').style.display='none';$('preview').src='';$('foodSearchResults').className='product';$('foodSearchResults').innerHTML='';['mealCalories','mealProtein','mealCarbs','mealFat','mealFiber'].forEach(id=>$(id).value='');$('servingGrams').value='100'}
 $('resetForm').onclick=reset;
 $('photo').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;if(f.size>8*1024*1024){alert('Please choose an image under 8 MB.');e.target.value='';return}const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const c=document.createElement('canvas'),scale=Math.min(1,1200/Math.max(img.width,img.height));c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);c.getContext('2d').drawImage(img,0,0,c.width,c.height);currentPhoto=c.toDataURL('image/jpeg',.78);$('preview').src=currentPhoto;$('preview').style.display='block'};img.src=r.result};r.readAsDataURL(f)});
-$('mealForm').onsubmit=e=>{e.preventDefault();const id=$('editId').value||makeId(),old=entries.find(x=>x.id===id),item={id,type:$('mealType').value,date:$('mealDate').value,foods:$('foods').value.trim(),notes:$('notes').value.trim(),photo:currentPhoto||old?.photo||'',calories:num('mealCalories',old?.calories),protein:num('mealProtein',old?.protein),carbs:num('mealCarbs',old?.carbs),fat:num('mealFat',old?.fat),servingGrams:num('servingGrams',old?.servingGrams||100)};if(old)entries=entries.map(x=>x.id===id?item:x);else entries.push(item);persist();selectedDay=new Date(item.date);reset();render();switchTab('diary')};
+$('mealForm').onsubmit=e=>{e.preventDefault();const id=$('editId').value||makeId(),old=entries.find(x=>x.id===id),item={id,type:$('mealType').value,date:$('mealDate').value,foods:$('foods').value.trim(),notes:$('notes').value.trim(),photo:currentPhoto||old?.photo||'',calories:num('mealCalories',old?.calories),protein:num('mealProtein',old?.protein),carbs:num('mealCarbs',old?.carbs),fat:num('mealFat',old?.fat),fiber:num('mealFiber',old?.fiber),servingGrams:num('servingGrams',old?.servingGrams||100)};if(old)entries=entries.map(x=>x.id===id?item:x);else entries.push(item);persist();selectedDay=new Date(item.date);reset();render();switchTab('diary')};
 function makeId(){return (crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2)}
-function totals(list){return list.reduce((a,x)=>({calories:a.calories+(Number(x.calories)||0),protein:a.protein+(Number(x.protein)||0),carbs:a.carbs+(Number(x.carbs)||0),fat:a.fat+(Number(x.fat)||0)}),{calories:0,protein:0,carbs:0,fat:0})}
-function render(){const key=dayKey(selectedDay),today=localDate(),daily=entries.filter(x=>(x.date||'').slice(0,10)===key),t=totals(daily);$('headerDate').textContent=key===today?'Today':selectedDay.toLocaleDateString([],{month:'short',day:'numeric'});$('dateLabel').textContent=key===today?'Today':selectedDay.toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'});$('selectedDate').textContent=selectedDay.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});$('dayCalories').textContent=fmtNum(t.calories);$('dayProtein').textContent=fmtNum(t.protein)+' g';$('dayCarbs').textContent=fmtNum(t.carbs)+' g';$('mealSections').innerHTML=types.map(type=>{const group=daily.filter(x=>x.type===type).sort((a,b)=>a.date.localeCompare(b.date));return `<div class="meal-row"><div class="meal-icon">${icons[type]}</div><div><h3>${type}</h3><p>${group.length?`${group.length} ${group.length===1?'entry':'entries'}`:'No entries yet'}</p></div><button class="add-round" onclick="addFor('${type}')" aria-label="Add ${type}">+</button></div><div class="meal-items">${group.map(x=>`<article class="entry"><strong>${esc(fmt(x.date))}</strong><p>${esc(x.foods)}</p><p class="muted">${fmtNum(x.calories)} kcal · P ${fmtNum(x.protein)} g · C ${fmtNum(x.carbs)} g · F ${fmtNum(x.fat)} g</p>${x.notes?`<p class="muted">${esc(x.notes)}</p>`:''}${x.photo?`<img src="${x.photo}" alt="Meal photo">`:''}<div class="entry-actions"><button onclick="editEntry('${x.id}')">Edit</button><button onclick="deleteEntry('${x.id}')">Delete</button></div></article>`).join('')}</div>`}).join('')}
+function totals(list){return list.reduce((a,x)=>({calories:a.calories+(Number(x.calories)||0),protein:a.protein+(Number(x.protein)||0),carbs:a.carbs+(Number(x.carbs)||0),fat:a.fat+(Number(x.fat)||0),fiber:a.fiber+(Number(x.fiber)||0)}),{calories:0,protein:0,carbs:0,fat:0,fiber:0})}
+function render(){const key=dayKey(selectedDay),today=localDate(),daily=entries.filter(x=>(x.date||'').slice(0,10)===key),t=totals(daily);$('headerDate').textContent=key===today?'Today':selectedDay.toLocaleDateString([],{month:'short',day:'numeric'});$('dateLabel').textContent=key===today?'Today':selectedDay.toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'});$('selectedDate').textContent=selectedDay.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});$('dayCalories').textContent=fmtNum(t.calories);$('dayProtein').textContent=fmtNum(t.protein)+' g';$('dayCarbs').textContent=fmtNum(t.carbs)+' g';$('dayFat').textContent=fmtNum(t.fat)+' g';$('dayFiber').textContent=fmtNum(t.fiber)+' g';$('mealSections').innerHTML=types.map(type=>{const group=daily.filter(x=>x.type===type).sort((a,b)=>a.date.localeCompare(b.date));return `<div class="meal-row"><div class="meal-icon">${icons[type]}</div><div><h3>${type}</h3><p>${group.length?`${group.length} ${group.length===1?'entry':'entries'}`:'No entries yet'}</p></div><button class="add-round" onclick="addFor('${type}')" aria-label="Add ${type}">+</button></div><div class="meal-items">${group.map(x=>`<article class="entry"><strong>${esc(fmt(x.date))}</strong><p>${esc(x.foods)}</p><p class="muted">${fmtNum(x.calories)} kcal · P ${fmtNum(x.protein)} g · C ${fmtNum(x.carbs)} g · F ${fmtNum(x.fat)} g · Fibre ${fmtNum(x.fiber||0)} g</p>${x.notes?`<p class="muted">${esc(x.notes)}</p>`:''}${x.photo?`<img src="${x.photo}" alt="Meal photo">`:''}<div class="entry-actions"><button onclick="editEntry('${x.id}')">Edit</button><button onclick="deleteEntry('${x.id}')">Delete</button></div></article>`).join('')}</div>`}).join('')}
 function renderHome(){
 const savedName=localStorage.getItem('mealJournalUserName')||'';
 $('greeting').textContent=savedName?'Hello, '+savedName:'Hello there';
@@ -216,9 +220,9 @@ const affirmations=[
 ];
 const dayNumber=Math.floor(new Date().setHours(0,0,0,0)/86400000);
 $('dailyAffirmation').textContent=affirmations[((dayNumber%affirmations.length)+affirmations.length)%affirmations.length];
-const today=localDate(),daily=entries.filter(x=>(x.date||'').slice(0,10)===today),t=totals(daily),latest=[...weights].sort((a,b)=>b.date.localeCompare(a.date))[0];$('homeDate').textContent=new Date().toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});$('headerDate').textContent='Today';$('homeCalories').textContent=fmtNum(t.calories);$('homeMeals').textContent=daily.length;$('homeProtein').textContent=fmtNum(t.protein)+' g';$('homeMacroProtein').textContent=fmtNum(t.protein)+' g';$('homeMacroCarbs').textContent=fmtNum(t.carbs)+' g';$('homeMacroFat').textContent=fmtNum(t.fat)+' g';$('homeWeight').textContent=latest?`${fmtNum(latest.value)} ${latest.unit}`:'—';$('homeWeightNote').textContent=weights.length?`${weights.length} ${weights.length===1?'entry':'entries'} in your weight journal.`:'No weight entries yet. You can add one whenever you choose.';const preview=$('homeMealPreview');preview.innerHTML=daily.length?daily.slice().sort((a,b)=>a.date.localeCompare(b.date)).slice(0,3).map(x=>`<div class="entry"><strong>${esc(x.type)} · ${esc(fmt(x.date))}</strong><p>${esc(x.foods)}</p></div>`).join(''):'<div class="empty">Your meal entries will appear here.</div>'}
+const today=localDate(),daily=entries.filter(x=>(x.date||'').slice(0,10)===today),t=totals(daily),latest=[...weights].sort((a,b)=>b.date.localeCompare(a.date))[0];$('homeDate').textContent=new Date().toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});$('headerDate').textContent='Today';$('homeCalories').textContent=fmtNum(t.calories);$('homeMeals').textContent=daily.length;$('homeProtein').textContent=fmtNum(t.protein)+' g';$('homeMacroProtein').textContent=fmtNum(t.protein)+' g';$('homeMacroCarbs').textContent=fmtNum(t.carbs)+' g';$('homeMacroFat').textContent=fmtNum(t.fat)+' g';$('homeMacroFiber').textContent=fmtNum(t.fiber)+' g';$('homeWeight').textContent=latest?`${fmtNum(latest.value)} ${latest.unit}`:'—';$('homeWeightNote').textContent=weights.length?`${weights.length} ${weights.length===1?'entry':'entries'} in your weight journal.`:'No weight entries yet. You can add one whenever you choose.';const preview=$('homeMealPreview');preview.innerHTML=daily.length?daily.slice().sort((a,b)=>a.date.localeCompare(b.date)).slice(0,3).map(x=>`<div class="entry"><strong>${esc(x.type)} · ${esc(fmt(x.date))}</strong><p>${esc(x.foods)}</p></div>`).join(''):'<div class="empty">Your meal entries will appear here.</div>'}
 window.addFor=type=>{$('mealType').value=type;$('mealDate').value=dayKey(selectedDay)+'T12:00';$('editId').value='';$('formTitle').textContent='Add a meal';$('saveBtn').textContent='Save meal';switchTab('add')};
-window.editEntry=id=>{const x=entries.find(e=>e.id===id);if(!x)return;$('editId').value=x.id;$('mealType').value=x.type;$('mealDate').value=x.date;$('foods').value=x.foods;$('notes').value=x.notes||'';$('mealCalories').value=x.calories??'';$('mealProtein').value=x.protein??'';$('mealCarbs').value=x.carbs??'';$('mealFat').value=x.fat??'';$('servingGrams').value=x.servingGrams??100;currentPhoto=x.photo||'';if(currentPhoto){$('preview').src=currentPhoto;$('preview').style.display='block'}$('formTitle').textContent='Edit meal';$('saveBtn').textContent='Save changes';switchTab('add')};
+window.editEntry=id=>{const x=entries.find(e=>e.id===id);if(!x)return;$('editId').value=x.id;$('mealType').value=x.type;$('mealDate').value=x.date;$('foods').value=x.foods;$('notes').value=x.notes||'';$('mealCalories').value=x.calories??'';$('mealProtein').value=x.protein??'';$('mealCarbs').value=x.carbs??'';$('mealFat').value=x.fat??'';$('mealFiber').value=x.fiber??'';$('servingGrams').value=x.servingGrams??100;currentPhoto=x.photo||'';if(currentPhoto){$('preview').src=currentPhoto;$('preview').style.display='block'}$('formTitle').textContent='Edit meal';$('saveBtn').textContent='Save changes';switchTab('add')};
 window.deleteEntry=id=>{if(!confirm('Delete this meal entry?'))return;entries=entries.filter(x=>x.id!==id);persist();render();renderHome()};
 $('prevDay').onclick=()=>{selectedDay.setDate(selectedDay.getDate()-1);render()};$('nextDay').onclick=()=>{selectedDay.setDate(selectedDay.getDate()+1);render()};$('dateLabel').onclick=()=>{selectedDay=new Date();selectedDay.setHours(12,0,0,0);render()};
 function renderWeights(){const list=[...weights].sort((a,b)=>a.date.localeCompare(b.date));$('weightList').innerHTML=list.length?list.slice().reverse().map(x=>`<div class="weight-item"><div><strong>${fmtNum(x.value)} ${esc(x.unit)}</strong><br><small>${new Date(x.date+'T12:00:00').toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'})}${x.note?' · '+esc(x.note):''}</small></div><button onclick="deleteWeight('${x.id}')">Delete</button></div>`).join(''):'<div class="empty">No weight entries yet.</div>';drawWeightChart(list);renderHome()}
@@ -278,7 +282,7 @@ function renderNaturalReview(){
     <p class="muted">${esc(item.food)}</p>
     ${item.matches?.length ?
      `<label>Database match</label><select data-match="${i}">${item.matches.map((x,j)=>`<option value="${j}" ${j===(item.choice||0)?'selected':''}>${esc(x.name)} — ${esc(x.source||x.brand||'Database')}</option>`).join('')}</select>
-      <p>${fmtNum(f?.calories||0)} kcal · Protein ${fmtNum(f?.protein||0)} g · Carbs ${fmtNum(f?.carbs||0)} g · Fat ${fmtNum(f?.fat||0)} g per 100 g</p>` :
+      <p>${fmtNum(f?.calories||0)} kcal · Protein ${fmtNum(f?.protein||0)} g · Carbs ${fmtNum(f?.carbs||0)} g · Fat ${fmtNum(f?.fat||0)} g · Fibre ${fmtNum(f?.fiber||0)} g per 100 g</p>` :
      '<p class="muted">No database match found. Try changing the food description.</p>'}
     <label>Estimated amount (grams)</label>
     <input type="number" min="1" step="1" data-grams="${i}" value="${Math.round(item.grams)}">
@@ -304,18 +308,18 @@ function renderNaturalReview(){
 function approveNaturalFoods(){
  const usable=naturalItems.filter(x=>x.matches?.length);
  if(!usable.length){alert('No matched foods to approve.');return}
- let totals={calories:0,protein:0,carbs:0,fat:0};
+ let totals={calories:0,protein:0,carbs:0,fat:0,fiber:0};
  const descriptions=[];
  usable.forEach(item=>{
   const f=item.matches[item.choice||0],factor=item.grams/100;
-  ['calories','protein','carbs','fat'].forEach(k=>totals[k]+=(Number(f[k])||0)*factor);
+  ['calories','protein','carbs','fat','fiber'].forEach(k=>totals[k]+=(Number(f[k])||0)*factor);
   descriptions.push(item.description+' ('+Math.round(item.grams)+' g; '+f.name+')');
  });
  $('foods').value=descriptions.join('\n');
  $('mealCalories').value=fmtNum(totals.calories);
  $('mealProtein').value=fmtNum(totals.protein);
  $('mealCarbs').value=fmtNum(totals.carbs);
- $('mealFat').value=fmtNum(totals.fat);
+ $('mealFat').value=fmtNum(totals.fat);$('mealFiber').value=fmtNum(totals.fiber);
  $('servingGrams').value='100';
  naturalActive=false;
  naturalItems=[];
@@ -371,10 +375,10 @@ window.onFoodSearch=raw=>{
   box.textContent='No results found. For USDA results, add your free API key in Profile. Try another search.';
   return;
  }
- box.innerHTML=list.map((f,i)=>`<div class="entry"><strong>${esc(f.name)}</strong><p class="muted">${esc(f.brand||f.source)} · per 100 g</p><p>${fmtNum(f.calories||0)} kcal · Protein ${fmtNum(f.protein||0)} g · Carbs ${fmtNum(f.carbs||0)} g · Fat ${fmtNum(f.fat||0)} g</p><button class="btn secondary" type="button" onclick="useFoodResult(${i})">Add to this meal</button></div>`).join('');
+ box.innerHTML=list.map((f,i)=>`<div class="entry"><strong>${esc(f.name)}</strong><p class="muted">${esc(f.brand||f.source)} · per 100 g</p><p>${fmtNum(f.calories||0)} kcal · Protein ${fmtNum(f.protein||0)} g · Carbs ${fmtNum(f.carbs||0)} g · Fat ${fmtNum(f.fat||0)} g · Fibre ${fmtNum(f.fiber||0)} g</p><button class="btn secondary" type="button" onclick="useFoodResult(${i})">Add to this meal</button></div>`).join('');
  window.foodSearchItems=list;
 };
-window.useFoodResult=i=>{const f=window.foodSearchItems?.[i];if(!f)return;$('foods').value=($('foods').value?$('foods').value+'\n':'')+f.name+' (nutrition values per 100 g)';const factor=(Number($('servingGrams').value)||100)/100;$('mealCalories').value=fmtNum((f.calories||0)*factor);$('mealProtein').value=fmtNum((f.protein||0)*factor);$('mealCarbs').value=fmtNum((f.carbs||0)*factor);$('mealFat').value=fmtNum((f.fat||0)*factor)};
+window.useFoodResult=i=>{const f=window.foodSearchItems?.[i];if(!f)return;$('foods').value=($('foods').value?$('foods').value+'\n':'')+f.name+' (nutrition values per 100 g)';const factor=(Number($('servingGrams').value)||100)/100;$('mealCalories').value=fmtNum((f.calories||0)*factor);$('mealProtein').value=fmtNum((f.protein||0)*factor);$('mealCarbs').value=fmtNum((f.carbs||0)*factor);$('mealFat').value=fmtNum((f.fat||0)*factor);$('mealFiber').value=fmtNum((f.fiber||0)*factor)};
 
 $('userName').value=localStorage.getItem('mealJournalUserName')||'';
 $('saveUserName').onclick=()=>{

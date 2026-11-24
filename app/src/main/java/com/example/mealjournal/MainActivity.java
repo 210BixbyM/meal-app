@@ -94,6 +94,9 @@ public class MainActivity extends Activity {
                                 n.optDouble("carbohydrates_100g", 0));
                             item.put("fat",
                                 n.optDouble("fat_100g", 0));
+                            item.put("fiber",
+                                n.optDouble("fiber_100g",
+                                    n.optDouble("fibers_100g", 0)));
 
                             if (!matchesFoodQuery(query, item.optString("name", ""))) continue;
 
@@ -131,6 +134,7 @@ public class MainActivity extends Activity {
                                 double protein = 0;
                                 double carbs = 0;
                                 double fat = 0;
+                                double fiber = 0;
 
                                 if (nutrients != null) {
                                     for (int j = 0; j < nutrients.length(); j++) {
@@ -157,6 +161,9 @@ public class MainActivity extends Activity {
                                             carbs = v;
                                         } else if (name.equals("total lipid (fat)")) {
                                             fat = v;
+                                        } else if (name.equals("fiber, total dietary")
+                                            || name.equals("dietary fiber")) {
+                                            fiber = v;
                                         }
                                     }
                                 }
@@ -171,6 +178,7 @@ public class MainActivity extends Activity {
                                 item.put("protein", protein);
                                 item.put("carbs", carbs);
                                 item.put("fat", fat);
+                                item.put("fiber", fiber);
 
                                 if (!matchesFoodQuery(query, item.optString("name", ""))) continue;
 
