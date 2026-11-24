@@ -575,7 +575,28 @@ const mood=$('mjMood').value;if(!mood){$('mjMoodStatus').textContent='Check-in s
 const a=get('mj_mood_v1').filter(x=>x.date!==today());a.push({date:today(),mood});put('mj_mood_v1',a);$('mjMoodStatus').textContent='Check-in saved.';
 };
 const style=document.createElement('style');
-style.textContent='body.mj-dark{--bg:#171d19;--surface:#242d27;--ink:#edf4ee;--muted:#aab8ad;--line:#39453c;--pale:#344b3a;--green:#75bd8d;--green-dark:#a1d4ae}body.mj-dark input,body.mj-dark textarea,body.mj-dark select,body.mj-dark .bottom{background:#242d27;color:#edf4ee;border-color:#39453c}body.mj-dark .entry,body.mj-dark .macro,body.mj-dark .weight-item{background:#2c382f;border-color:#39453c}';
+style.textContent='
+body.mj-dark{--bg:#171d19;--surface:#242d27;--ink:#edf4ee;--muted:#b8c5bb;--line:#465349;--pale:#344b3a;--green:#8dcc9f;--green-dark:#b0dfbb}
+body.mj-dark .hero-card{background:linear-gradient(135deg,#263b2e,#202d25)!important;border:1px solid #465349}
+body.mj-dark .hero-card p{color:#c1cec4!important}
+body.mj-dark .stat{background:#34443a!important;color:#f0f5f1}
+body.mj-dark .stat span,body.mj-dark .ring-inner span{color:#c1cec4}
+body.mj-dark .ring{background:conic-gradient(var(--green) 0deg,#435b49 0deg)}
+body.mj-dark .ring:before{background:#26372c}
+body.mj-dark .macro,body.mj-dark .entry,body.mj-dark .weight-item{background:#2c382f;border-color:#465349;color:#edf4ee}
+body.mj-dark .date-chip,body.mj-dark .date-nav button{background:#2c382f;color:#edf4ee;border-color:#465349}
+body.mj-dark .notice{background:#303e34;color:#d1ded4}
+body.mj-dark .product{background:#29382e;color:#edf4ee}
+body.mj-dark .card[style*="background:#f6faf6"]{background:#29382e!important}
+body.mj-dark .bottom{background:#202923;color:#edf4ee;border-color:#465349}
+body.mj-dark .bottom button{color:#b8c5bb}
+body.mj-dark .bottom button.active{color:#9bd6aa}
+body.mj-dark input,body.mj-dark textarea,body.mj-dark select{background:#202923;color:#edf4ee;border-color:#536357}
+body.mj-dark input::placeholder,body.mj-dark textarea::placeholder{color:#aab8ad}
+body.mj-dark .btn.secondary,body.mj-dark .entry-actions button,body.mj-dark .weight-item button{background:#3b5141;color:#d8eee0}
+body.mj-dark .btn.warn{background:#59383d;color:#ffdce0}
+body.mj-dark .link{color:#a9d9b5}
+';
 document.head.appendChild(style);
 $('mjDark').checked=localStorage.getItem('mj_dark_v1')==='true';
 document.body.classList.toggle('mj-dark',$('mjDark').checked);
