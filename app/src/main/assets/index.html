@@ -19,6 +19,10 @@
 <main class="content">
 <section id="home" class="panel active">
   <div class="section-head"><h2>Today's overview</h2><small id="homeDate"></small></div>
+  <div class="card" id="affirmationCard">
+    <h3 style="margin:0 0 5px">A thought for today ✿</h3>
+    <p id="dailyAffirmation" class="muted" style="margin:0">You deserve kindness, including from yourself.</p>
+  </div>
   <div class="card hero-card">
     <div class="hero-grid">
       <div class="ring" id="calorieRing"><div class="ring-inner"><strong id="homeCalories">0</strong><span>kcal logged</span></div></div>
@@ -63,6 +67,13 @@
   <div class="card">
     <form id="mealForm">
       <input type="hidden" id="editId">
+      <div class="card" style="padding:13px;margin:0 0 14px;background:#f6faf6;box-shadow:none">
+        <h3 style="font-size:.98rem;margin:0 0 5px">Describe your meal</h3>
+        <p class="muted" style="font-size:.8rem;margin:0 0 9px">Describe what you ate. You'll review the foods and estimates before saving.</p>
+        <textarea id="naturalFoodDescription" placeholder="Example: Two scrambled eggs, toast and coffee with milk."></textarea>
+        <button class="btn secondary" type="button" id="parseFoodBtn" style="width:100%;margin-top:8px">Identify foods for review</button>
+        <div id="parsedFoodReview" class="product"></div>
+      </div>
       <div class="form-grid">
         <div><label for="mealType">Meal</label><select id="mealType"><option>Breakfast</option><option>Lunch</option><option>Dinner</option><option>Snacks</option><option>Something else</option></select></div>
         <div><label for="mealDate">Date and time</label><input id="mealDate" type="datetime-local" required></div>
@@ -113,6 +124,31 @@
 
 <section id="profile" class="panel">
   <div class="section-head"><h2>Profile & settings</h2></div>
+  <div class="card">
+    <h3 style="margin:0 0 5px">Your profile</h3>
+    <label for="userName">What would you like the app to call you?</label>
+    <input id="userName" maxlength="40" placeholder="Your preferred name">
+    <div class="actions"><button class="btn" id="saveUserName" type="button">Save name</button></div>
+  </div>
+  <div class="card">
+    <h3 style="margin:0 0 5px">Estimated maintenance reference</h3>
+    <p class="muted" style="font-size:.83rem">An approximate reference, not a required target or limit.</p>
+    <div class="form-grid">
+      <div><label for="maintAge">Age</label><input id="maintAge" type="number" min="18" max="110" placeholder="Years"></div>
+      <div><label for="maintHeight">Height (cm)</label><input id="maintHeight" type="number" min="100" max="250" step="0.1" placeholder="Centimetres"></div>
+      <div><label for="maintWeight">Weight (kg)</label><input id="maintWeight" type="number" min="30" max="350" step="0.1" placeholder="Kilograms"></div>
+      <div><label for="maintActivity">Activity level</label>
+        <select id="maintActivity">
+          <option value="1.2">Mostly sitting</option>
+          <option value="1.375">Light activity</option>
+          <option value="1.55">Moderate activity</option>
+          <option value="1.725">High activity</option>
+        </select>
+      </div>
+    </div>
+    <div class="actions"><button class="btn" id="estimateMaintenance" type="button">Estimate maintenance</button></div>
+    <div id="maintenanceResult" class="notice" style="margin-top:12px">You can leave this section unused.</div>
+  </div>
   <div class="card">
     <h3 style="margin:0 0 5px">Your data</h3><p class="muted" style="font-size:.83rem">Your meal and weight entries stay on this device unless you export a backup.</p>
     <div class="actions"><button class="btn" id="exportBtn">Export backup</button><label class="btn secondary" for="importFile" style="margin:0;display:inline-flex;align-items:center">Import backup</label><input id="importFile" class="hidden" type="file" accept="application/json"></div>
@@ -165,7 +201,22 @@ $('mealForm').onsubmit=e=>{e.preventDefault();const id=$('editId').value||makeId
 function makeId(){return (crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2)}
 function totals(list){return list.reduce((a,x)=>({calories:a.calories+(Number(x.calories)||0),protein:a.protein+(Number(x.protein)||0),carbs:a.carbs+(Number(x.carbs)||0),fat:a.fat+(Number(x.fat)||0)}),{calories:0,protein:0,carbs:0,fat:0})}
 function render(){const key=dayKey(selectedDay),today=localDate(),daily=entries.filter(x=>(x.date||'').slice(0,10)===key),t=totals(daily);$('headerDate').textContent=key===today?'Today':selectedDay.toLocaleDateString([],{month:'short',day:'numeric'});$('dateLabel').textContent=key===today?'Today':selectedDay.toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'});$('selectedDate').textContent=selectedDay.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});$('dayCalories').textContent=fmtNum(t.calories);$('dayProtein').textContent=fmtNum(t.protein)+' g';$('dayCarbs').textContent=fmtNum(t.carbs)+' g';$('mealSections').innerHTML=types.map(type=>{const group=daily.filter(x=>x.type===type).sort((a,b)=>a.date.localeCompare(b.date));return `<div class="meal-row"><div class="meal-icon">${icons[type]}</div><div><h3>${type}</h3><p>${group.length?`${group.length} ${group.length===1?'entry':'entries'}`:'No entries yet'}</p></div><button class="add-round" onclick="addFor('${type}')" aria-label="Add ${type}">+</button></div><div class="meal-items">${group.map(x=>`<article class="entry"><strong>${esc(fmt(x.date))}</strong><p>${esc(x.foods)}</p><p class="muted">${fmtNum(x.calories)} kcal · P ${fmtNum(x.protein)} g · C ${fmtNum(x.carbs)} g · F ${fmtNum(x.fat)} g</p>${x.notes?`<p class="muted">${esc(x.notes)}</p>`:''}${x.photo?`<img src="${x.photo}" alt="Meal photo">`:''}<div class="entry-actions"><button onclick="editEntry('${x.id}')">Edit</button><button onclick="deleteEntry('${x.id}')">Delete</button></div></article>`).join('')}</div>`}).join('')}
-function renderHome(){const today=localDate(),daily=entries.filter(x=>(x.date||'').slice(0,10)===today),t=totals(daily),latest=[...weights].sort((a,b)=>b.date.localeCompare(a.date))[0];$('homeDate').textContent=new Date().toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});$('headerDate').textContent='Today';$('homeCalories').textContent=fmtNum(t.calories);$('homeMeals').textContent=daily.length;$('homeProtein').textContent=fmtNum(t.protein)+' g';$('homeMacroProtein').textContent=fmtNum(t.protein)+' g';$('homeMacroCarbs').textContent=fmtNum(t.carbs)+' g';$('homeMacroFat').textContent=fmtNum(t.fat)+' g';$('homeWeight').textContent=latest?`${fmtNum(latest.value)} ${latest.unit}`:'—';$('homeWeightNote').textContent=weights.length?`${weights.length} ${weights.length===1?'entry':'entries'} in your weight journal.`:'No weight entries yet. You can add one whenever you choose.';const preview=$('homeMealPreview');preview.innerHTML=daily.length?daily.slice().sort((a,b)=>a.date.localeCompare(b.date)).slice(0,3).map(x=>`<div class="entry"><strong>${esc(x.type)} · ${esc(fmt(x.date))}</strong><p>${esc(x.foods)}</p></div>`).join(''):'<div class="empty">Your meal entries will appear here.</div>'}
+function renderHome(){
+const savedName=localStorage.getItem('mealJournalUserName')||'';
+$('greeting').textContent=savedName?'Hello, '+savedName:'Hello there';
+const affirmations=[
+'You deserve kindness, including from yourself.',
+'You do not have to earn your right to feel good.',
+'Progress does not have to be perfect.',
+'You are more than numbers on a screen.',
+'You deserve patience on difficult days.',
+'Taking care of yourself is worthwhile.',
+'You are allowed to take things one step at a time.',
+'Your worth does not depend on what you eat or achieve.'
+];
+const dayNumber=Math.floor(new Date().setHours(0,0,0,0)/86400000);
+$('dailyAffirmation').textContent=affirmations[((dayNumber%affirmations.length)+affirmations.length)%affirmations.length];
+const today=localDate(),daily=entries.filter(x=>(x.date||'').slice(0,10)===today),t=totals(daily),latest=[...weights].sort((a,b)=>b.date.localeCompare(a.date))[0];$('homeDate').textContent=new Date().toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});$('headerDate').textContent='Today';$('homeCalories').textContent=fmtNum(t.calories);$('homeMeals').textContent=daily.length;$('homeProtein').textContent=fmtNum(t.protein)+' g';$('homeMacroProtein').textContent=fmtNum(t.protein)+' g';$('homeMacroCarbs').textContent=fmtNum(t.carbs)+' g';$('homeMacroFat').textContent=fmtNum(t.fat)+' g';$('homeWeight').textContent=latest?`${fmtNum(latest.value)} ${latest.unit}`:'—';$('homeWeightNote').textContent=weights.length?`${weights.length} ${weights.length===1?'entry':'entries'} in your weight journal.`:'No weight entries yet. You can add one whenever you choose.';const preview=$('homeMealPreview');preview.innerHTML=daily.length?daily.slice().sort((a,b)=>a.date.localeCompare(b.date)).slice(0,3).map(x=>`<div class="entry"><strong>${esc(x.type)} · ${esc(fmt(x.date))}</strong><p>${esc(x.foods)}</p></div>`).join(''):'<div class="empty">Your meal entries will appear here.</div>'}
 window.addFor=type=>{$('mealType').value=type;$('mealDate').value=dayKey(selectedDay)+'T12:00';$('editId').value='';$('formTitle').textContent='Add a meal';$('saveBtn').textContent='Save meal';switchTab('add')};
 window.editEntry=id=>{const x=entries.find(e=>e.id===id);if(!x)return;$('editId').value=x.id;$('mealType').value=x.type;$('mealDate').value=x.date;$('foods').value=x.foods;$('notes').value=x.notes||'';$('mealCalories').value=x.calories??'';$('mealProtein').value=x.protein??'';$('mealCarbs').value=x.carbs??'';$('mealFat').value=x.fat??'';$('servingGrams').value=x.servingGrams??100;currentPhoto=x.photo||'';if(currentPhoto){$('preview').src=currentPhoto;$('preview').style.display='block'}$('formTitle').textContent='Edit meal';$('saveBtn').textContent='Save changes';switchTab('add')};
 window.deleteEntry=id=>{if(!confirm('Delete this meal entry?'))return;entries=entries.filter(x=>x.id!==id);persist();render();renderHome()};
@@ -182,8 +233,184 @@ $('deleteWeights').onclick=()=>{if(confirm('Permanently delete all weight entrie
 $('saveUsdaKey').onclick=()=>{localStorage.setItem('mealJournalUsdaKey',$('usdaKey').value.trim());alert('USDA API key saved on this device.')};
 $('usdaKey').value=localStorage.getItem('mealJournalUsdaKey')||'';
 $('searchFoodBtn').onclick=()=>{const q=$('foodSearch').value.trim();if(!q){alert('Enter a food to search.');return}const box=$('foodSearchResults');box.className='product show';box.textContent='Searching Open Food Facts and USDA FoodData Central…';if(window.MealJournalAndroid&&MealJournalAndroid.searchFoods){MealJournalAndroid.searchFoods(q,localStorage.getItem('mealJournalUsdaKey')||'')}else{box.textContent='Food database search is available in the installed Android app.'}};
-window.onFoodSearch=raw=>{let list=[];try{list=JSON.parse(raw)}catch{}const box=$('foodSearchResults');box.className='product show';if(!list.length){box.textContent='No results found. For USDA results, add your free API key in Profile. Try another search.';return}box.innerHTML=list.map((f,i)=>`<div class="entry"><strong>${esc(f.name)}</strong><p class="muted">${esc(f.brand||f.source)} · per 100 g</p><p>${fmtNum(f.calories||0)} kcal · Protein ${fmtNum(f.protein||0)} g · Carbs ${fmtNum(f.carbs||0)} g · Fat ${fmtNum(f.fat||0)} g</p><button class="btn secondary" type="button" onclick="useFoodResult(${i})">Add to this meal</button></div>`).join('');window.foodSearchItems=list};
+
+let naturalActive=false;
+let naturalQueue=[];
+let naturalItems=[];
+let naturalCurrent=null;
+
+const wordNumbers={one:1,two:2,three:3,four:4,five:5,
+ six:6,seven:7,eight:8,nine:9,ten:10};
+
+function parseFoodDescription(text){
+ const parts=text.split(/[,;\n]+|\s+and\s+(?=(?:\d|one\b|two\b|three\b|four\b|five\b|six\b|seven\b|eight\b|nine\b|ten\b))/i)
+  .map(x=>x.trim()).filter(Boolean);
+ return parts.map(part=>{
+  const m=part.match(/^(one|two|three|four|five|six|seven|eight|nine|ten|\d+(?:\.\d+)?)\s*(cups?|c|ml|milliliters?|g|grams?|kg|oz|ounces?|slices?|eggs?|pieces?|tbsp|tablespoons?|tsp|teaspoons?)?\s+(.+)$/i);
+  if(!m) return {description:part,food:part,grams:100,portion:'Approx. 100 g — check this'};
+  const qty=wordNumbers[m[1].toLowerCase()]||Number(m[1]);
+  const unit=(m[2]||'').toLowerCase();
+  let grams=qty*100;
+  if(['cup','cups','c'].includes(unit)) grams=qty*240;
+  else if(['ml','milliliter','milliliters'].includes(unit)) grams=qty;
+  else if(['g','gram','grams'].includes(unit)) grams=qty;
+  else if(unit==='kg') grams=qty*1000;
+  else if(['oz','ounce','ounces'].includes(unit)) grams=qty*28.35;
+  else if(unit==='slice'||unit==='slices') grams=qty*30;
+  else if(unit==='egg'||unit==='eggs') grams=qty*50;
+  else if(['tbsp','tablespoon','tablespoons'].includes(unit)) grams=qty*15;
+  else if(['tsp','teaspoon','teaspoons'].includes(unit)) grams=qty*5;
+  else if(['piece','pieces'].includes(unit)) grams=qty*100;
+  return {description:part,food:m[3].trim(),grams:Math.max(1,grams),portion:qty+' '+unit};
+ });
+}
+
+function renderNaturalReview(){
+ const box=$('parsedFoodReview');
+ if(!naturalItems.length){box.className='product';box.innerHTML='';return}
+ box.className='product show';
+ box.innerHTML='<h3>Review your foods</h3>'+
+  '<p class="muted">Check each match and estimated portion. Nothing is saved until you approve.</p>'+
+  naturalItems.map((item,i)=>{
+   const f=item.matches?.[item.choice||0];
+   return `<div class="entry">
+    <strong>${esc(item.description)}</strong>
+    <p class="muted">${esc(item.food)}</p>
+    ${item.matches?.length ?
+     `<label>Database match</label><select data-match="${i}">${item.matches.map((x,j)=>`<option value="${j}" ${j===(item.choice||0)?'selected':''}>${esc(x.name)} — ${esc(x.source||x.brand||'Database')}</option>`).join('')}</select>
+      <p>${fmtNum(f?.calories||0)} kcal · Protein ${fmtNum(f?.protein||0)} g · Carbs ${fmtNum(f?.carbs||0)} g · Fat ${fmtNum(f?.fat||0)} g per 100 g</p>` :
+     '<p class="muted">No database match found. Try changing the food description.</p>'}
+    <label>Estimated amount (grams)</label>
+    <input type="number" min="1" step="1" data-grams="${i}" value="${Math.round(item.grams)}">
+    <button class="btn secondary" type="button" data-remove="${i}">Remove</button>
+   </div>`;
+  }).join('')+
+  '<div class="actions"><button class="btn" type="button" id="approveNaturalFoods">Approve and add meal</button></div>';
+
+ box.querySelectorAll('[data-match]').forEach(el=>el.onchange=()=>{
+  naturalItems[Number(el.dataset.match)].choice=Number(el.value);
+  renderNaturalReview();
+ });
+ box.querySelectorAll('[data-grams]').forEach(el=>el.onchange=()=>{
+  naturalItems[Number(el.dataset.grams)].grams=Math.max(1,Number(el.value)||1);
+ });
+ box.querySelectorAll('[data-remove]').forEach(el=>el.onclick=()=>{
+  naturalItems.splice(Number(el.dataset.remove),1);
+  renderNaturalReview();
+ });
+ $('approveNaturalFoods').onclick=approveNaturalFoods;
+}
+
+function approveNaturalFoods(){
+ const usable=naturalItems.filter(x=>x.matches?.length);
+ if(!usable.length){alert('No matched foods to approve.');return}
+ let totals={calories:0,protein:0,carbs:0,fat:0};
+ const descriptions=[];
+ usable.forEach(item=>{
+  const f=item.matches[item.choice||0],factor=item.grams/100;
+  ['calories','protein','carbs','fat'].forEach(k=>totals[k]+=(Number(f[k])||0)*factor);
+  descriptions.push(item.description+' ('+Math.round(item.grams)+' g; '+f.name+')');
+ });
+ $('foods').value=descriptions.join('\n');
+ $('mealCalories').value=fmtNum(totals.calories);
+ $('mealProtein').value=fmtNum(totals.protein);
+ $('mealCarbs').value=fmtNum(totals.carbs);
+ $('mealFat').value=fmtNum(totals.fat);
+ $('servingGrams').value='100';
+ naturalActive=false;
+ naturalItems=[];
+ $('parsedFoodReview').className='product';
+ $('parsedFoodReview').innerHTML='';
+ $('mealForm').dispatchEvent(new Event('submit',{cancelable:true}));
+}
+
+function searchNextNaturalFood(){
+ if(!naturalQueue.length){
+  naturalActive=false;
+  renderNaturalReview();
+  return;
+ }
+ naturalCurrent=naturalQueue.shift();
+ if(!window.MealJournalAndroid?.searchFoods){
+  naturalCurrent.matches=[];
+  searchNextNaturalFood();
+  return;
+ }
+ MealJournalAndroid.searchFoods(
+  naturalCurrent.food,
+  localStorage.getItem('mealJournalUsdaKey')||''
+ );
+}
+
+$('parseFoodBtn').onclick=()=>{
+ const description=$('naturalFoodDescription').value.trim();
+ if(!description){alert('Describe what you ate first.');return}
+ if(naturalActive){alert('A food search is already running.');return}
+ naturalItems=parseFoodDescription(description);
+ naturalQueue=[...naturalItems];
+ naturalActive=true;
+ $('parsedFoodReview').className='product show';
+ $('parsedFoodReview').textContent='Looking up foods in the databases…';
+ searchNextNaturalFood();
+};
+
+
+window.onFoodSearch=raw=>{
+ let list=[];
+ try{list=JSON.parse(raw)}catch{}
+ if(naturalActive && naturalCurrent){
+  naturalCurrent.matches=list;
+  naturalCurrent.choice=0;
+  naturalCurrent=null;
+  searchNextNaturalFood();
+  return;
+ }
+ const box=$('foodSearchResults');
+ box.className='product show';
+ if(!list.length){
+  box.textContent='No results found. For USDA results, add your free API key in Profile. Try another search.';
+  return;
+ }
+ box.innerHTML=list.map((f,i)=>`<div class="entry"><strong>${esc(f.name)}</strong><p class="muted">${esc(f.brand||f.source)} · per 100 g</p><p>${fmtNum(f.calories||0)} kcal · Protein ${fmtNum(f.protein||0)} g · Carbs ${fmtNum(f.carbs||0)} g · Fat ${fmtNum(f.fat||0)} g</p><button class="btn secondary" type="button" onclick="useFoodResult(${i})">Add to this meal</button></div>`).join('');
+ window.foodSearchItems=list;
+};
 window.useFoodResult=i=>{const f=window.foodSearchItems?.[i];if(!f)return;$('foods').value=($('foods').value?$('foods').value+'\n':'')+f.name+' (nutrition values per 100 g)';const factor=(Number($('servingGrams').value)||100)/100;$('mealCalories').value=fmtNum((f.calories||0)*factor);$('mealProtein').value=fmtNum((f.protein||0)*factor);$('mealCarbs').value=fmtNum((f.carbs||0)*factor);$('mealFat').value=fmtNum((f.fat||0)*factor)};
+
+$('userName').value=localStorage.getItem('mealJournalUserName')||'';
+$('saveUserName').onclick=()=>{
+ const name=$('userName').value.trim().slice(0,40);
+ localStorage.setItem('mealJournalUserName',name);
+ $('greeting').textContent=name?'Hello, '+name:'Hello there';
+ alert(name?'Your name has been saved.':'Your name has been cleared.');
+};
+
+$('estimateMaintenance').onclick=()=>{
+ const age=Number($('maintAge').value);
+ const height=Number($('maintHeight').value);
+ const weight=Number($('maintWeight').value);
+ const activity=Number($('maintActivity').value);
+ const result=$('maintenanceResult');
+
+ if(!Number.isFinite(age)||age<18||age>110||
+    !Number.isFinite(height)||height<100||height>250||
+    !Number.isFinite(weight)||weight<30||weight>350||
+    !Number.isFinite(activity)){
+   result.textContent='Please check the age, height, weight and activity details.';
+   return;
+ }
+
+ // Mifflin-St Jeor equation variants, shown as a broad estimate.
+ const base=10*weight+6.25*height-5*age;
+ const estimateA=(base+5)*activity;
+ const estimateB=(base-161)*activity;
+ const low=Math.floor(Math.min(estimateA,estimateB)/100)*100;
+ const high=Math.ceil(Math.max(estimateA,estimateB)/100)*100;
+
+ result.textContent='Very rough estimated maintenance range: '+low.toLocaleString()+
+   '–'+high.toLocaleString()+
+   ' kcal/day. This is an estimate, not a prescription or a limit. Actual needs can differ substantially.';
+};
+
 function rollover(){const today=localDate();if($('headerDate').textContent!=='Today')render();renderHome()}
 $('weightDate').value=localDate();$('weightUnit').value='kg';reset();render();renderHome();renderWeights();
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){render();renderHome()}});
