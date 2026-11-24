@@ -668,10 +668,15 @@ function waterTotal(){
  $('mjWaterProgressBar').style.width=Math.min(100,total/goal*100)+'%';
  $('mjWaterGlasses').innerHTML=Array.from({length:count},(_,i)=>{
   const full=i<filled;
-  return '<button type="button" '+(full?'disabled':'')+' data-water-glass="'+i+'" aria-label="'+(full?'Filled':'Add')+' 250 ml glass" style="border:0;background:transparent;padding:5px;display:flex;flex-direction:column;align-items:center;gap:4px;opacity:'+(full?'.95':'.65')+';cursor:'+(full?'default':'pointer')+'"><span style="width:32px;height:43px;border:2px solid #55aaca;border-radius:4px 4px 9px 9px;display:block;position:relative;overflow:hidden;background:linear-gradient(to top,'+(full?'#55b8dc 85%':'#55b8dc 0%')+',transparent 0%);'+(full?'':'background:#eaf7fc')+'"><span style="position:absolute;bottom:0;left:0;right:0;height:'+(full?'85%':'0%')+';background:#55b8dc"></span></span><small>'+(i+1)+'</small></button>';
+  return '<button type="button" data-water-glass="'+i+'" aria-label="'+(full?'Remove':'Add')+' 250 ml water" title="'+(full?'Tap to remove 250 ml':'Tap to add 250 ml')+'" style="border:0;background:transparent;padding:5px;display:flex;flex-direction:column;align-items:center;gap:4px;opacity:'+(full?'.95':'.65')+';cursor:pointer"><span style="width:32px;height:43px;border:2px solid #55aaca;border-radius:4px 4px 9px 9px;display:block;position:relative;overflow:hidden;background:'+(full?'#55b8dc':'#eaf7fc')+'"><span style="position:absolute;bottom:0;left:0;right:0;height:'+(full?'85%':'0%')+';background:#55b8dc"></span></span><small>'+(i+1)+'</small></button>';
  }).join('');
  $('mjWaterGlasses').querySelectorAll('[data-water-glass]').forEach(b=>b.addEventListener('click',()=>{
-  const a=get('mj_water_v1');a.push({date:today(),ml:250});put('mj_water_v1',a);waterTotal();
+  const a=get('mj_water_v1');
+  const index=Number(b.dataset.waterGlass);
+  const todayIndexes=a.map((x,i)=>x.date===today()?i:-1).filter(i=>i>=0);
+  if(index<todayIndexes.length)a.splice(todayIndexes[index],1);
+  else a.push({date:today(),ml:250});
+  put('mj_water_v1',a);waterTotal();
  }));
 }
 $('mjWaterGoal').value=localStorage.getItem(WATER_GOAL_KEY)||'2000';
@@ -902,23 +907,53 @@ render();renderHome();
 
 const oldExport=$('exportBtn').onclick;
 $('exportBtn').onclick=()=>{
- const extras={};
- [...Object.values(keys),'mj_water_v1','mj_mood_v1'].forEach(k=>extras[k]=read(k));
- extras.mj_hide_streak=localStorage.getItem('mj_hide_streak')||'false';
- const backup=JSON.stringify({app:'Meal Journal',version:3,entries,weights,extras},null,2);
+ const data={};
+ for(let i=0;i<localStorage.length;i++){
+  const k=localStorage.key(i);
+  if(k!==null)data[k]=localStorage.getItem(k);
+ }
+ const backup=JSON.stringify({
+  app:'Meal Journal',
+  version:4,
+  createdAt:new Date().toISOString(),
+  storage:data,
+  entries,
+  weights
+ },null,2);
  if(window.MealJournalAndroid?.saveBackup)window.MealJournalAndroid.saveBackup(backup);
  else download(new Blob([backup],{type:'application/json'}),'meal-journal-backup.json');
 };
-const oldImport=$('importFile').onchange;
 $('importFile').onchange=async function(e){
  const f=e.target.files?.[0];
- if(f){try{
-  const d=JSON.parse(await f.text()),x=d.extras||{};
-  [...Object.values(keys),'mj_water_v1','mj_mood_v1'].forEach(k=>{if(Array.isArray(x[k]))write(k,x[k])});
-  if(x.mj_hide_streak!==undefined)localStorage.setItem('mj_hide_streak',x.mj_hide_streak);
- }catch{}}
- if(oldImport)await oldImport.call(this,e);
- renderLibrary();renderRecipes();renderUnits();renderStreak();
+ if(f){
+  try{
+   const d=JSON.parse(await f.text());
+   if(d.app!=='Meal Journal')throw new Error('Invalid backup file');
+   if(d.storage&&typeof d.storage==='object'){
+    Object.entries(d.storage).forEach(([k,v])=>{
+     if(typeof v==='string')localStorage.setItem(k,v);
+    });
+   }else{
+    const x=d.extras||{};
+    [...Object.values(keys),'mj_water_v1','mj_mood_v1'].forEach(k=>{
+     if(Array.isArray(x[k]))write(k,x[k]);
+    });
+    if(x.mj_hide_streak!==undefined)localStorage.setItem('mj_hide_streak',x.mj_hide_streak);
+    if(Array.isArray(d.entries)){entries=d.entries;persist()}
+    if(Array.isArray(d.weights)){weights=d.weights;persistWeights()}
+   }
+   if(d.storage){
+    if(Array.isArray(d.entries)){entries=d.entries;persist()}
+    if(Array.isArray(d.weights)){weights=d.weights;persistWeights()}
+   }
+   alert('Backup restored successfully. Reloading the app.');
+   location.reload();
+  }catch(err){
+   alert('Could not restore backup: '+err.message);
+  }
+ }
+};
+renderLibrary();renderRecipes();renderUnits();renderStreak();
 };
 })();
 
