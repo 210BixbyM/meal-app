@@ -1,9 +1,11 @@
 package com.example.crumb;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
+import android.webkit.ValueCallback;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -23,6 +25,7 @@ import org.tensorflow.lite.Tensor;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.concurrent.ExecutorService;
@@ -34,6 +37,11 @@ import org.json.JSONArray;
 public class MainActivity extends Activity {
 
     private static final int GROCERY_SCAN_REQUEST = 7301;
+    private static final int BACKUP_OPEN_REQUEST = 7302;
+    private static final int BACKUP_SAVE_REQUEST = 7303;
+
+    private ValueCallback<Uri[]> fileChooserCallback;
+    private String pendingBackupJson;
 
     private WebView webView;
     private Interpreter foodInterpreter;
@@ -56,7 +64,33 @@ public class MainActivity extends Activity {
         settings.setAllowUniversalAccessFromFileURLs(true);
 
         webView.setWebViewClient(new WebViewClient());
-        webView.setWebChromeClient(new WebChromeClient());
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(
+                    WebView view,
+                    ValueCallback<Uri[]> callback,
+                    FileChooserParams params) {
+                if (fileChooserCallback != null) {
+                    fileChooserCallback.onReceiveValue(null);
+                }
+                fileChooserCallback = callback;
+
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("application/json");
+
+                try {
+                    startActivityForResult(intent, BACKUP_OPEN_REQUEST);
+                    return true;
+                } catch (Exception ex) {
+                    fileChooserCallback = null;
+                    callback.onReceiveValue(null);
+                    Toast.makeText(MainActivity.this,
+                        "Unable to open file picker", Toast.LENGTH_LONG).show();
+                    return false;
+                }
+            }
+        });
 
         webView.addJavascriptInterface(
             new AndroidBridge(), "MealJournalAndroid"
@@ -228,6 +262,18 @@ public class MainActivity extends Activity {
             });
         }
         @JavascriptInterface
+        public void saveBackup(String json) {
+            runOnUiThread(() -> {
+                pendingBackupJson = json;
+                Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("application/json");
+                intent.putExtra(Intent.EXTRA_TITLE, "meal-journal-backup.json");
+                startActivityForResult(intent, BACKUP_SAVE_REQUEST);
+            });
+        }
+
+        @JavascriptInterface
         public void scanGrocery() {
             runOnUiThread(() -> {
                 android.content.Intent intent =
@@ -247,6 +293,36 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode,
                                     android.content.Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == BACKUP_OPEN_REQUEST) {
+            if (fileChooserCallback != null) {
+                Uri[] results = resultCode == RESULT_OK && data != null
+                    && data.getData() != null
+                    ? new Uri[]{data.getData()} : null;
+                fileChooserCallback.onReceiveValue(results);
+                fileChooserCallback = null;
+            }
+            return;
+        }
+
+        if (requestCode == BACKUP_SAVE_REQUEST) {
+            if (resultCode == RESULT_OK && data != null
+                    && data.getData() != null && pendingBackupJson != null) {
+                try (OutputStream out =
+                        getContentResolver().openOutputStream(data.getData())) {
+                    if (out == null) throw new Exception("Could not open file");
+                    out.write(pendingBackupJson.getBytes(
+                        java.nio.charset.StandardCharsets.UTF_8));
+                    Toast.makeText(this, "Backup exported successfully",
+                        Toast.LENGTH_LONG).show();
+                } catch (Exception ex) {
+                    Toast.makeText(this, "Backup export failed: " + ex.getMessage(),
+                        Toast.LENGTH_LONG).show();
+                }
+            }
+            pendingBackupJson = null;
+            return;
+        }
 
         if (requestCode == GROCERY_SCAN_REQUEST) {
             if (resultCode == RESULT_OK && data != null) {

@@ -905,7 +905,9 @@ $('exportBtn').onclick=()=>{
  const extras={};
  [...Object.values(keys),'mj_water_v1','mj_mood_v1'].forEach(k=>extras[k]=read(k));
  extras.mj_hide_streak=localStorage.getItem('mj_hide_streak')||'false';
- download(new Blob([JSON.stringify({app:'Meal Journal',version:3,entries,weights,extras},null,2)],{type:'application/json'}),'meal-journal-backup.json');
+ const backup=JSON.stringify({app:'Meal Journal',version:3,entries,weights,extras},null,2);
+ if(window.MealJournalAndroid?.saveBackup)window.MealJournalAndroid.saveBackup(backup);
+ else download(new Blob([backup],{type:'application/json'}),'meal-journal-backup.json');
 };
 const oldImport=$('importFile').onchange;
 $('importFile').onchange=async function(e){

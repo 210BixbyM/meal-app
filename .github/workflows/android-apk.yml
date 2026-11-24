@@ -35,6 +35,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Crumb-13.0.0-Beta1.0-APK
+          name: Crumb-13.0.2-Beta1.0-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
