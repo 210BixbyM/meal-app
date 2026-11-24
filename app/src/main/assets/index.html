@@ -89,6 +89,14 @@
     </div>
     <p class="muted" style="font-size:.76rem;margin:12px 0 0">Values reflect only information entered or supplied by a food database; some listings may be incomplete.</p>
   </div>
+  <div class="card" id="mjWaterTracker">
+    <div class="section-head"><h2>Water today</h2><strong id="mjWaterTotal">0 ml</strong></div>
+    <p class="muted" id="mjWaterProgress">Tap an empty glass to log 250 ml.</p>
+    <div id="mjWaterGlasses" style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;padding:12px 0"></div>
+    <div style="height:10px;background:var(--line,#e5e5e5);border-radius:20px;overflow:hidden">
+      <div id="mjWaterProgressBar" style="height:100%;width:0%;background:#55b8dc;border-radius:20px;transition:width .2s"></div>
+    </div>
+  </div>
   <div id="mealSections" class="card"></div>
   <div class="notice">Your diary is for your own reference. There are no required targets or streaks.</div>
 </section>
@@ -198,6 +206,14 @@
     <div id="maintenanceResult" class="notice" style="margin-top:12px">You can leave this section unused.</div>
   </div>
   <div class="card">
+    <h3 style="margin:0 0 5px">Water tracking</h3>
+    <p class="muted">Choose the daily water goal shown in your journal.</p>
+    <label for="mjWaterGoal">Daily water goal (ml)</label>
+    <input id="mjWaterGoal" type="number" min="1" max="10000" step="50" placeholder="2000">
+    <button class="btn secondary" type="button" id="mjSaveWaterGoal">Save water goal</button>
+    <p id="mjWaterGoalStatus" class="muted"></p>
+  </div>
+  <div class="card">
     <h3 style="margin:0 0 5px">Your data</h3><p class="muted" style="font-size:.83rem">Your meal and weight entries stay on this device unless you export a backup.</p>
     <div class="actions"><button class="btn" id="exportBtn">Export backup</button><label class="btn secondary" for="importFile" style="margin:0;display:inline-flex;align-items:center">Import backup</label><input id="importFile" class="hidden" type="file" accept="application/json"></div>
     <div class="actions"><button class="btn warn" id="deleteAll">Delete all meal entries</button><button class="btn warn" id="deleteWeights">Delete weight entries</button></div>
@@ -221,10 +237,6 @@
 </div>
 <div class="card">
 <h3>Daily check-in</h3>
-<label for="mjWater">Water amount (ml)</label>
-<input id="mjWater" type="number" min="1" placeholder="Amount">
-<button class="btn secondary" type="button" id="mjAddWater">Add water</button>
-<p id="mjWaterTotal" class="muted"></p>
 <label for="mjMood">How are you feeling? (optional)</label>
 <select id="mjMood"><option value="">Skip</option><option>Great</option><option>Good</option><option>Okay</option><option>Low</option><option>Stressed</option><option>Exhausted</option></select>
 <button class="btn secondary" type="button" id="mjSaveMood">Save check-in</button>
@@ -314,7 +326,7 @@ function fmt(s){const d=new Date(s);return isNaN(d)?s:d.toLocaleTimeString([],{h
 function fmtNum(n){return (Math.round((Number(n)||0)*10)/10).toString()}
 function switchTab(id){document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===id));document.querySelectorAll('.bottom button').forEach(b=>b.classList.toggle('active',b.dataset.tab===id));if(id==='weight')renderWeights();if(id==='home')renderHome()}
 document.querySelectorAll('.bottom button').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
-function reset(){ $('mealForm').reset();$('editId').value='';$('formTitle').textContent='Add a meal';$('saveBtn').textContent='Save meal';$('mealDate').value=localDateTime();currentPhoto='';$('preview').style.display='none';$('preview').src='';$('identifyFood').disabled=true;$('foodRecognitionResults').innerHTML='';$('foodSearchResults').className='product';$('foodSearchResults').innerHTML='';['mealCalories','mealProtein','mealCarbs','mealFat','mealFiber','mealSugar','mealSatFat','mealSodium'].forEach(id=>$(id).value='');$('servingGrams').value='100'}
+function reset(){ $('mealForm').reset();$('editId').value='';$('formTitle').textContent='Add a meal';$('saveBtn').textContent='Save meal';$('mealDate').value=localDateTime();currentPhoto='';window._selectedFoodNutrition=null;$('preview').style.display='none';$('preview').src='';$('identifyFood').disabled=true;$('foodRecognitionResults').innerHTML='';$('foodSearchResults').className='product';$('foodSearchResults').innerHTML='';['mealCalories','mealProtein','mealCarbs','mealFat','mealFiber','mealSugar','mealSatFat','mealSodium'].forEach(id=>$(id).value='');$('servingGrams').value='100'}
 $('resetForm').onclick=reset;
 $('photo').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;if(f.size>8*1024*1024){alert('Please choose an image under 8 MB.');e.target.value='';return}const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const c=document.createElement('canvas'),scale=Math.min(1,1200/Math.max(img.width,img.height));c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);c.getContext('2d').drawImage(img,0,0,c.width,c.height);currentPhoto=c.toDataURL('image/jpeg',.78);$('preview').src=currentPhoto;$('preview').style.display='block';$('identifyFood').disabled=false;$('foodRecognitionResults').innerHTML=''};img.src=r.result};r.readAsDataURL(f)});
 
@@ -364,7 +376,7 @@ $('foodRecognitionResults').addEventListener('click',e=>{
   field.value=existing+', '+item.name;
 });
 
-$('mealForm').onsubmit=e=>{e.preventDefault();const id=$('editId').value||makeId(),old=entries.find(x=>x.id===id),item={id,type:$('mealType').value,date:$('mealDate').value,foods:$('foods').value.trim(),notes:$('notes').value.trim(),photo:currentPhoto||old?.photo||'',calories:num('mealCalories',old?.calories),protein:num('mealProtein',old?.protein),carbs:num('mealCarbs',old?.carbs),fat:num('mealFat',old?.fat),fiber:num('mealFiber',old?.fiber),sugar:num('mealSugar',old?.sugar),satFat:num('mealSatFat',old?.satFat),sodium:num('mealSodium',old?.sodium),servingGrams:num('servingGrams',old?.servingGrams||100)};if(old)entries=entries.map(x=>x.id===id?item:x);else entries.push(item);persist();selectedDay=new Date(item.date);reset();render();switchTab('diary')};
+$('mealForm').onsubmit=e=>{e.preventDefault();const id=$('editId').value||makeId(),old=entries.find(x=>x.id===id),item={id,type:$('mealType').value,date:$('mealDate').value,foods:$('foods').value.trim(),notes:$('notes').value.trim(),photo:currentPhoto||old?.photo||'',calories:num('mealCalories',old?.calories),protein:num('mealProtein',old?.protein),carbs:num('mealCarbs',old?.carbs),fat:num('mealFat',old?.fat),fiber:num('mealFiber',old?.fiber),sugar:num('mealSugar',old?.sugar),satFat:num('mealSatFat',old?.satFat),sodium:num('mealSodium',old?.sodium),servingGrams:num('servingGrams',old?.servingGrams||100),nutritionPer100g:window._selectedFoodNutrition||old?.nutritionPer100g||null};if(old)entries=entries.map(x=>x.id===id?item:x);else entries.push(item);persist();selectedDay=new Date(item.date);reset();render();switchTab('diary')};
 function makeId(){return (crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2)}
 function totals(list){return list.reduce((a,x)=>({calories:a.calories+(Number(x.calories)||0),protein:a.protein+(Number(x.protein)||0),carbs:a.carbs+(Number(x.carbs)||0),fat:a.fat+(Number(x.fat)||0),fiber:a.fiber+(Number(x.fiber)||0)}),{calories:0,protein:0,carbs:0,fat:0,fiber:0})}
 function render(){const key=dayKey(selectedDay),today=localDate(),daily=entries.filter(x=>(x.date||'').slice(0,10)===key),t=totals(daily);$('headerDate').textContent=key===today?'Today':selectedDay.toLocaleDateString([],{month:'short',day:'numeric'});$('dateLabel').textContent=key===today?'Today':selectedDay.toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'});$('selectedDate').textContent=selectedDay.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});$('dayCalories').textContent=fmtNum(t.calories);$('dayProtein').textContent=fmtNum(t.protein)+' g';$('dayCarbs').textContent=fmtNum(t.carbs)+' g';$('dayFat').textContent=fmtNum(t.fat)+' g';$('dayFiber').textContent=fmtNum(t.fiber)+' g';$('mealSections').innerHTML=types.map(type=>{const group=daily.filter(x=>x.type===type).sort((a,b)=>a.date.localeCompare(b.date));return `<div class="meal-row"><div class="meal-icon">${icons[type]}</div><div><h3>${type}</h3><p>${group.length?`${group.length} ${group.length===1?'entry':'entries'}`:'No entries yet'}</p></div><button class="add-round" onclick="addFor('${type}')" aria-label="Add ${type}">+</button></div><div class="meal-items">${group.map(x=>`<article class="entry"><strong>${esc(fmt(x.date))}</strong><p>${esc(x.foods)}</p><p class="muted">${fmtNum(x.calories)} kcal · P ${fmtNum(x.protein)} g · C ${fmtNum(x.carbs)} g · F ${fmtNum(x.fat)} g · Fibre ${fmtNum(x.fiber||0)} g</p>${x.notes?`<p class="muted">${esc(x.notes)}</p>`:''}${x.photo?`<img src="${x.photo}" alt="Meal photo">`:''}<div class="entry-actions"><button onclick="editEntry('${x.id}')">Edit</button><button onclick="deleteEntry('${x.id}')">Delete</button></div></article>`).join('')}</div>`}).join('')}
@@ -385,7 +397,7 @@ const dayNumber=Math.floor(new Date().setHours(0,0,0,0)/86400000);
 $('dailyAffirmation').textContent=affirmations[((dayNumber%affirmations.length)+affirmations.length)%affirmations.length];
 const today=localDate(),daily=entries.filter(x=>(x.date||'').slice(0,10)===today),t=totals(daily),latest=[...weights].sort((a,b)=>b.date.localeCompare(a.date))[0];$('homeDate').textContent=new Date().toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});$('headerDate').textContent='Today';$('homeCalories').textContent=fmtNum(t.calories);$('homeMeals').textContent=daily.length;$('homeProtein').textContent=fmtNum(t.protein)+' g';$('homeMacroProtein').textContent=fmtNum(t.protein)+' g';$('homeMacroCarbs').textContent=fmtNum(t.carbs)+' g';$('homeMacroFat').textContent=fmtNum(t.fat)+' g';$('homeMacroFiber').textContent=fmtNum(t.fiber)+' g';$('homeWeight').textContent=latest?`${fmtNum(latest.value)} ${latest.unit}`:'—';$('homeWeightNote').textContent=weights.length?`${weights.length} ${weights.length===1?'entry':'entries'} in your weight journal.`:'No weight entries yet. You can add one whenever you choose.';const preview=$('homeMealPreview');preview.innerHTML=daily.length?daily.slice().sort((a,b)=>a.date.localeCompare(b.date)).slice(0,3).map(x=>`<div class="entry"><strong>${esc(x.type)} · ${esc(fmt(x.date))}</strong><p>${esc(x.foods)}</p></div>`).join(''):'<div class="empty">Your meal entries will appear here.</div>'}
 window.addFor=type=>{$('mealType').value=type;$('mealDate').value=dayKey(selectedDay)+'T12:00';$('editId').value='';$('formTitle').textContent='Add a meal';$('saveBtn').textContent='Save meal';switchTab('add')};
-window.editEntry=id=>{const x=entries.find(e=>e.id===id);if(!x)return;$('editId').value=x.id;$('mealType').value=x.type;$('mealDate').value=x.date;$('foods').value=x.foods;$('notes').value=x.notes||'';$('mealCalories').value=x.calories??'';$('mealProtein').value=x.protein??'';$('mealCarbs').value=x.carbs??'';$('mealFat').value=x.fat??'';$('mealFiber').value=x.fiber??'';$('mealSugar').value=x.sugar??'';$('mealSatFat').value=x.satFat??'';$('mealSodium').value=x.sodium??'';$('servingGrams').value=x.servingGrams??100;currentPhoto=x.photo||'';$('identifyFood').disabled=!currentPhoto;$('foodRecognitionResults').innerHTML='';if(currentPhoto){$('preview').src=currentPhoto;$('preview').style.display='block'}$('formTitle').textContent='Edit meal';$('saveBtn').textContent='Save changes';switchTab('add')};
+window.editEntry=id=>{const x=entries.find(e=>e.id===id);if(!x)return;$('editId').value=x.id;$('mealType').value=x.type;$('mealDate').value=x.date;$('foods').value=x.foods;$('notes').value=x.notes||'';$('mealCalories').value=x.calories??'';$('mealProtein').value=x.protein??'';$('mealCarbs').value=x.carbs??'';$('mealFat').value=x.fat??'';$('mealFiber').value=x.fiber??'';$('mealSugar').value=x.sugar??'';$('mealSatFat').value=x.satFat??'';$('mealSodium').value=x.sodium??'';$('servingGrams').value=x.servingGrams??100;window._selectedFoodNutrition=x.nutritionPer100g||null;currentPhoto=x.photo||'';$('identifyFood').disabled=!currentPhoto;$('foodRecognitionResults').innerHTML='';if(currentPhoto){$('preview').src=currentPhoto;$('preview').style.display='block'}$('formTitle').textContent='Edit meal';$('saveBtn').textContent='Save changes';switchTab('add')};
 window.deleteEntry=id=>{if(!confirm('Delete this meal entry?'))return;entries=entries.filter(x=>x.id!==id);persist();render();renderHome()};
 $('prevDay').onclick=()=>{selectedDay.setDate(selectedDay.getDate()-1);render()};$('nextDay').onclick=()=>{selectedDay.setDate(selectedDay.getDate()+1);render()};$('dateLabel').onclick=()=>{selectedDay=new Date();selectedDay.setHours(12,0,0,0);render()};
 function renderWeights(){const list=[...weights].sort((a,b)=>a.date.localeCompare(b.date));$('weightList').innerHTML=list.length?list.slice().reverse().map(x=>`<div class="weight-item"><div><strong>${fmtNum(x.value)} ${esc(x.unit)}</strong><br><small>${new Date(x.date+'T12:00:00').toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'})}${x.note?' · '+esc(x.note):''}</small></div><button onclick="deleteWeight('${x.id}')">Delete</button></div>`).join(''):'<div class="empty">No weight entries yet.</div>';drawWeightChart(list);renderHome()}
@@ -541,7 +553,28 @@ window.onFoodSearch=raw=>{
  box.innerHTML=list.map((f,i)=>`<div class="entry"><strong>${esc(f.name)}</strong><p class="muted">${esc(f.brand||f.source)} · per 100 g</p><p>${fmtNum(f.calories||0)} kcal · Protein ${fmtNum(f.protein||0)} g · Carbs ${fmtNum(f.carbs||0)} g · Fat ${fmtNum(f.fat||0)} g · Fibre ${fmtNum(f.fiber||0)} g</p><button class="btn secondary" type="button" onclick="useFoodResult(${i})">Add to this meal</button></div>`).join('');
  window.foodSearchItems=list;
 };
-window.useFoodResult=i=>{const f=window.foodSearchItems?.[i];if(!f)return;$('foods').value=($('foods').value?$('foods').value+'\n':'')+f.name+' (nutrition values per 100 g)';const factor=(Number($('servingGrams').value)||100)/100;$('mealCalories').value=fmtNum((f.calories||0)*factor);$('mealProtein').value=fmtNum((f.protein||0)*factor);$('mealCarbs').value=fmtNum((f.carbs||0)*factor);$('mealFat').value=fmtNum((f.fat||0)*factor);$('mealFiber').value=fmtNum((f.fiber||0)*factor)};
+window._selectedFoodNutrition=null;
+window.applyServingNutrition=()=>{
+ const base=window._selectedFoodNutrition;
+ if(!base)return;
+ const grams=Number($('servingGrams').value);
+ if(!Number.isFinite(grams)||grams<0)return;
+ const factor=grams/100;
+ for(const [key,id] of Object.entries({calories:'mealCalories',protein:'mealProtein',carbs:'mealCarbs',fat:'mealFat',fiber:'mealFiber',sugar:'mealSugar',satFat:'mealSatFat',sodium:'mealSodium'})){
+  $(id).value=base[key]==null?'':fmtNum(base[key]*factor);
+ }
+};
+$('servingGrams').addEventListener('input',()=>window.applyServingNutrition());
+window.useFoodResult=i=>{
+ const f=window.foodSearchItems?.[i];if(!f)return;
+ $('foods').value=($('foods').value?$('foods').value+'\n':'')+f.name+' (nutrition values per 100 g)';
+ window._selectedFoodNutrition={};
+ for(const key of ['calories','protein','carbs','fat','fiber','sugar','satFat','sodium']){
+  const value=Number(f[key]);
+  window._selectedFoodNutrition[key]=Number.isFinite(value)?value:null;
+ }
+ window.applyServingNutrition();
+};
 
 $('userName').value=localStorage.getItem('mealJournalUserName')||'';
 $('saveUserName').onclick=()=>{
@@ -608,13 +641,30 @@ $(id).value=x[k]??'';
 }
 switchTab('add');
 };
+const WATER_GOAL_KEY='mj_water_goal_v1';
 function waterTotal(){
-const total=get('mj_water_v1').filter(x=>x.date===today()).reduce((a,x)=>a+x.ml,0);
-$('mjWaterTotal').textContent='Water logged today: '+total+' ml';
+ const total=get('mj_water_v1').filter(x=>x.date===today()).reduce((a,x)=>a+(Number(x.ml)||0),0);
+ const goal=Math.max(1,Number(localStorage.getItem(WATER_GOAL_KEY))||2000);
+ const count=Math.min(40,Math.max(1,Math.ceil(goal/250)));
+ const filled=Math.floor(total/250);
+ $('mjWaterTotal').textContent=total.toLocaleString()+' ml';
+ $('mjWaterProgress').textContent=fmtNum(total)+' ml logged · '+fmtNum(goal)+' ml personal goal';
+ $('mjWaterProgressBar').style.width=Math.min(100,total/goal*100)+'%';
+ $('mjWaterGlasses').innerHTML=Array.from({length:count},(_,i)=>{
+  const full=i<filled;
+  return '<button type="button" '+(full?'disabled':'')+' data-water-glass="'+i+'" aria-label="'+(full?'Filled':'Add')+' 250 ml glass" style="border:0;background:transparent;padding:5px;display:flex;flex-direction:column;align-items:center;gap:4px;opacity:'+(full?'.95':'.65')+';cursor:'+(full?'default':'pointer')+'"><span style="width:32px;height:43px;border:2px solid #55aaca;border-radius:4px 4px 9px 9px;display:block;position:relative;overflow:hidden;background:linear-gradient(to top,'+(full?'#55b8dc 85%':'#55b8dc 0%')+',transparent 0%);'+(full?'':'background:#eaf7fc')+'"><span style="position:absolute;bottom:0;left:0;right:0;height:'+(full?'85%':'0%')+';background:#55b8dc"></span></span><small>'+(i+1)+'</small></button>';
+ }).join('');
+ $('mjWaterGlasses').querySelectorAll('[data-water-glass]').forEach(b=>b.addEventListener('click',()=>{
+  const a=get('mj_water_v1');a.push({date:today(),ml:250});put('mj_water_v1',a);waterTotal();
+ }));
 }
-$('mjAddWater').onclick=()=>{
-const ml=Number($('mjWater').value);if(!Number.isFinite(ml)||ml<=0){alert('Enter a valid amount.');return}
-const a=get('mj_water_v1');a.push({date:today(),ml});put('mj_water_v1',a);$('mjWater').value='';waterTotal();
+$('mjWaterGoal').value=localStorage.getItem(WATER_GOAL_KEY)||'2000';
+$('mjSaveWaterGoal').onclick=()=>{
+ const goal=Number($('mjWaterGoal').value);
+ if(!Number.isFinite(goal)||goal<1||goal>10000){alert('Enter a goal between 1 and 10,000 ml.');return}
+ localStorage.setItem(WATER_GOAL_KEY,String(goal));
+ $('mjWaterGoalStatus').textContent='Daily water goal saved.';
+ waterTotal();
 };
 waterTotal();
 $('mjSaveMood').onclick=()=>{

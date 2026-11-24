@@ -1,4 +1,4 @@
-package com.example.mealjournal;
+package com.example.crumb;
 
 import android.app.Activity;
 import android.os.Bundle;

@@ -4,7 +4,8 @@
 
     <application
         android:allowBackup="true"
-        android:label="Meal Journal"
+        android:label="Crumb: AI Food Tracking"
+        android:icon="@mipmap/ic_launcher"
         android:theme="@style/AppTheme">
 
         <activity
