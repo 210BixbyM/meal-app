@@ -95,6 +95,8 @@ public class MainActivity extends Activity {
                             item.put("fat",
                                 n.optDouble("fat_100g", 0));
 
+                            if (!matchesFoodQuery(query, item.optString("name", ""))) continue;
+
                             results.put(item);
                         }
                     }
@@ -170,6 +172,8 @@ public class MainActivity extends Activity {
                                 item.put("carbs", carbs);
                                 item.put("fat", fat);
 
+                                if (!matchesFoodQuery(query, item.optString("name", ""))) continue;
+
                                 results.put(item);
                             }
                         }
@@ -201,6 +205,33 @@ public class MainActivity extends Activity {
                 });
             });
         }
+    }
+
+
+    private boolean matchesFoodQuery(String query, String name) {
+        String[] terms = query.toLowerCase()
+            .replaceAll("[^a-z0-9]+", " ").trim().split("\\s+");
+
+        String[] words = name.toLowerCase()
+            .replaceAll("[^a-z0-9]+", " ").trim().split("\\s+");
+
+        for (String term : terms) {
+            if (term.isEmpty()) continue;
+            if (term.length() > 3 && term.endsWith("s"))
+                term = term.substring(0, term.length() - 1);
+
+            boolean found = false;
+            for (String word : words) {
+                if (word.length() > 3 && word.endsWith("s"))
+                    word = word.substring(0, word.length() - 1);
+                if (word.equals(term)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) return false;
+        }
+        return true;
     }
 
     private String httpGet(String address) throws Exception {
