@@ -141,7 +141,7 @@
 <div><label for="mealSatFat">Saturated fat (g)</label><input id="mealSatFat" type="number" min="0" step="0.1"></div>
 <div><label for="mealSodium">Sodium (mg)</label><input id="mealSodium" type="number" min="0" step="1"></div>
       </div>
-      <label for="photo">Meal photo (optional)</label><input id="photo" type="file" accept="image/*" capture="environment"><img id="preview" class="photo" alt="Selected meal photo preview">
+      <label for="photo">Meal photo (optional)</label><input id="photo" type="file" accept="image/*" capture="environment"><img id="preview" class="photo" alt="Selected meal photo preview"><button class="btn secondary" type="button" id="identifyFood" disabled>Identify foods in photo</button><div id="foodRecognitionResults" class="product"></div>
       <label for="notes">Notes (optional)</label><textarea id="notes" placeholder="Anything you want to remember about this meal…"></textarea>
       <div class="actions"><button class="btn" type="submit" id="saveBtn">Save meal</button><button class="btn secondary" type="button" id="resetForm">Clear form</button></div>
     </form>
@@ -314,9 +314,56 @@ function fmt(s){const d=new Date(s);return isNaN(d)?s:d.toLocaleTimeString([],{h
 function fmtNum(n){return (Math.round((Number(n)||0)*10)/10).toString()}
 function switchTab(id){document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===id));document.querySelectorAll('.bottom button').forEach(b=>b.classList.toggle('active',b.dataset.tab===id));if(id==='weight')renderWeights();if(id==='home')renderHome()}
 document.querySelectorAll('.bottom button').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
-function reset(){ $('mealForm').reset();$('editId').value='';$('formTitle').textContent='Add a meal';$('saveBtn').textContent='Save meal';$('mealDate').value=localDateTime();currentPhoto='';$('preview').style.display='none';$('preview').src='';$('foodSearchResults').className='product';$('foodSearchResults').innerHTML='';['mealCalories','mealProtein','mealCarbs','mealFat','mealFiber','mealSugar','mealSatFat','mealSodium'].forEach(id=>$(id).value='');$('servingGrams').value='100'}
+function reset(){ $('mealForm').reset();$('editId').value='';$('formTitle').textContent='Add a meal';$('saveBtn').textContent='Save meal';$('mealDate').value=localDateTime();currentPhoto='';$('preview').style.display='none';$('preview').src='';$('identifyFood').disabled=true;$('foodRecognitionResults').innerHTML='';$('foodSearchResults').className='product';$('foodSearchResults').innerHTML='';['mealCalories','mealProtein','mealCarbs','mealFat','mealFiber','mealSugar','mealSatFat','mealSodium'].forEach(id=>$(id).value='');$('servingGrams').value='100'}
 $('resetForm').onclick=reset;
-$('photo').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;if(f.size>8*1024*1024){alert('Please choose an image under 8 MB.');e.target.value='';return}const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const c=document.createElement('canvas'),scale=Math.min(1,1200/Math.max(img.width,img.height));c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);c.getContext('2d').drawImage(img,0,0,c.width,c.height);currentPhoto=c.toDataURL('image/jpeg',.78);$('preview').src=currentPhoto;$('preview').style.display='block'};img.src=r.result};r.readAsDataURL(f)});
+$('photo').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;if(f.size>8*1024*1024){alert('Please choose an image under 8 MB.');e.target.value='';return}const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const c=document.createElement('canvas'),scale=Math.min(1,1200/Math.max(img.width,img.height));c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);c.getContext('2d').drawImage(img,0,0,c.width,c.height);currentPhoto=c.toDataURL('image/jpeg',.78);$('preview').src=currentPhoto;$('preview').style.display='block';$('identifyFood').disabled=false;$('foodRecognitionResults').innerHTML=''};img.src=r.result};r.readAsDataURL(f)});
+
+$('identifyFood').onclick=()=>{
+ if(!currentPhoto)return;
+ $('identifyFood').disabled=true;
+ $('foodRecognitionResults').textContent='Identifying possible foods on this device…';
+ if(!window.MealJournalAndroid){
+  $('foodRecognitionResults').textContent='Recognition service unavailable.';
+  $('identifyFood').disabled=false;
+  return;
+ }
+ MealJournalAndroid.recognizeFood(currentPhoto);
+};
+window._foodMatches=[];
+window.onFoodRecognition=raw=>{
+ $('identifyFood').disabled=false;
+ try{
+  const data=JSON.parse(raw);
+  if(data.error){
+   $('foodRecognitionResults').textContent=data.error;
+   return;
+  }
+  window._foodMatches=data.results||[];
+  if(!window._foodMatches.length){
+   $('foodRecognitionResults').textContent='No suggestions. You can enter the food manually.';
+   return;
+  }
+  $('foodRecognitionResults').innerHTML=
+   '<p>Possible matches. Review suggestions before adding them.</p>'+
+   window._foodMatches.map((x,i)=>
+    '<button class="btn secondary" type="button" data-food-index="'+i+'">'+
+    esc(x.name)+' ('+Math.round(Math.max(0,Math.min(1,x.score))*100)+'%)</button>'
+   ).join('');
+ }catch(e){
+  $('foodRecognitionResults').textContent='Could not read recognition results.';
+ }
+};
+$('foodRecognitionResults').addEventListener('click',e=>{
+ const button=e.target.closest('button[data-food-index]');
+ if(!button)return;
+ const item=window._foodMatches[Number(button.dataset.foodIndex)];
+ if(!item)return;
+ const field=$('foods'),existing=field.value.trim();
+ if(!existing)field.value=item.name;
+ else if(!existing.split(',').some(x=>x.trim().toLowerCase()===item.name.toLowerCase()))
+  field.value=existing+', '+item.name;
+});
+
 $('mealForm').onsubmit=e=>{e.preventDefault();const id=$('editId').value||makeId(),old=entries.find(x=>x.id===id),item={id,type:$('mealType').value,date:$('mealDate').value,foods:$('foods').value.trim(),notes:$('notes').value.trim(),photo:currentPhoto||old?.photo||'',calories:num('mealCalories',old?.calories),protein:num('mealProtein',old?.protein),carbs:num('mealCarbs',old?.carbs),fat:num('mealFat',old?.fat),fiber:num('mealFiber',old?.fiber),sugar:num('mealSugar',old?.sugar),satFat:num('mealSatFat',old?.satFat),sodium:num('mealSodium',old?.sodium),servingGrams:num('servingGrams',old?.servingGrams||100)};if(old)entries=entries.map(x=>x.id===id?item:x);else entries.push(item);persist();selectedDay=new Date(item.date);reset();render();switchTab('diary')};
 function makeId(){return (crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2)}
 function totals(list){return list.reduce((a,x)=>({calories:a.calories+(Number(x.calories)||0),protein:a.protein+(Number(x.protein)||0),carbs:a.carbs+(Number(x.carbs)||0),fat:a.fat+(Number(x.fat)||0),fiber:a.fiber+(Number(x.fiber)||0)}),{calories:0,protein:0,carbs:0,fat:0,fiber:0})}
@@ -338,7 +385,7 @@ const dayNumber=Math.floor(new Date().setHours(0,0,0,0)/86400000);
 $('dailyAffirmation').textContent=affirmations[((dayNumber%affirmations.length)+affirmations.length)%affirmations.length];
 const today=localDate(),daily=entries.filter(x=>(x.date||'').slice(0,10)===today),t=totals(daily),latest=[...weights].sort((a,b)=>b.date.localeCompare(a.date))[0];$('homeDate').textContent=new Date().toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});$('headerDate').textContent='Today';$('homeCalories').textContent=fmtNum(t.calories);$('homeMeals').textContent=daily.length;$('homeProtein').textContent=fmtNum(t.protein)+' g';$('homeMacroProtein').textContent=fmtNum(t.protein)+' g';$('homeMacroCarbs').textContent=fmtNum(t.carbs)+' g';$('homeMacroFat').textContent=fmtNum(t.fat)+' g';$('homeMacroFiber').textContent=fmtNum(t.fiber)+' g';$('homeWeight').textContent=latest?`${fmtNum(latest.value)} ${latest.unit}`:'—';$('homeWeightNote').textContent=weights.length?`${weights.length} ${weights.length===1?'entry':'entries'} in your weight journal.`:'No weight entries yet. You can add one whenever you choose.';const preview=$('homeMealPreview');preview.innerHTML=daily.length?daily.slice().sort((a,b)=>a.date.localeCompare(b.date)).slice(0,3).map(x=>`<div class="entry"><strong>${esc(x.type)} · ${esc(fmt(x.date))}</strong><p>${esc(x.foods)}</p></div>`).join(''):'<div class="empty">Your meal entries will appear here.</div>'}
 window.addFor=type=>{$('mealType').value=type;$('mealDate').value=dayKey(selectedDay)+'T12:00';$('editId').value='';$('formTitle').textContent='Add a meal';$('saveBtn').textContent='Save meal';switchTab('add')};
-window.editEntry=id=>{const x=entries.find(e=>e.id===id);if(!x)return;$('editId').value=x.id;$('mealType').value=x.type;$('mealDate').value=x.date;$('foods').value=x.foods;$('notes').value=x.notes||'';$('mealCalories').value=x.calories??'';$('mealProtein').value=x.protein??'';$('mealCarbs').value=x.carbs??'';$('mealFat').value=x.fat??'';$('mealFiber').value=x.fiber??'';$('mealSugar').value=x.sugar??'';$('mealSatFat').value=x.satFat??'';$('mealSodium').value=x.sodium??'';$('servingGrams').value=x.servingGrams??100;currentPhoto=x.photo||'';if(currentPhoto){$('preview').src=currentPhoto;$('preview').style.display='block'}$('formTitle').textContent='Edit meal';$('saveBtn').textContent='Save changes';switchTab('add')};
+window.editEntry=id=>{const x=entries.find(e=>e.id===id);if(!x)return;$('editId').value=x.id;$('mealType').value=x.type;$('mealDate').value=x.date;$('foods').value=x.foods;$('notes').value=x.notes||'';$('mealCalories').value=x.calories??'';$('mealProtein').value=x.protein??'';$('mealCarbs').value=x.carbs??'';$('mealFat').value=x.fat??'';$('mealFiber').value=x.fiber??'';$('mealSugar').value=x.sugar??'';$('mealSatFat').value=x.satFat??'';$('mealSodium').value=x.sodium??'';$('servingGrams').value=x.servingGrams??100;currentPhoto=x.photo||'';$('identifyFood').disabled=!currentPhoto;$('foodRecognitionResults').innerHTML='';if(currentPhoto){$('preview').src=currentPhoto;$('preview').style.display='block'}$('formTitle').textContent='Edit meal';$('saveBtn').textContent='Save changes';switchTab('add')};
 window.deleteEntry=id=>{if(!confirm('Delete this meal entry?'))return;entries=entries.filter(x=>x.id!==id);persist();render();renderHome()};
 $('prevDay').onclick=()=>{selectedDay.setDate(selectedDay.getDate()-1);render()};$('nextDay').onclick=()=>{selectedDay.setDate(selectedDay.getDate()+1);render()};$('dateLabel').onclick=()=>{selectedDay=new Date();selectedDay.setHours(12,0,0,0);render()};
 function renderWeights(){const list=[...weights].sort((a,b)=>a.date.localeCompare(b.date));$('weightList').innerHTML=list.length?list.slice().reverse().map(x=>`<div class="weight-item"><div><strong>${fmtNum(x.value)} ${esc(x.unit)}</strong><br><small>${new Date(x.date+'T12:00:00').toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'})}${x.note?' · '+esc(x.note):''}</small></div><button onclick="deleteWeight('${x.id}')">Delete</button></div>`).join(''):'<div class="empty">No weight entries yet.</div>';drawWeightChart(list);renderHome()}

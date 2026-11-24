@@ -9,6 +9,16 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 import android.net.Uri;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.util.Base64;
+import java.io.ByteArrayOutputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.Arrays;
+import org.tensorflow.lite.DataType;
+import org.tensorflow.lite.Interpreter;
+import org.tensorflow.lite.Tensor;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -24,6 +34,8 @@ import org.json.JSONArray;
 public class MainActivity extends Activity {
 
     private WebView webView;
+    private Interpreter foodInterpreter;
+    private String[] foodLabels;
     private final ExecutorService executor =
         Executors.newSingleThreadExecutor();
 
@@ -213,8 +225,155 @@ public class MainActivity extends Activity {
                 });
             });
         }
+        @JavascriptInterface
+        public void recognizeFood(String dataUrl) {
+            MainActivity.this.recognizeFood(dataUrl);
+        }
     }
 
+    private void recognizeFood(String dataUrl) {
+        executor.execute(() -> {
+            String response;
+            Bitmap original = null;
+            Bitmap resized = null;
+
+            try {
+                if (foodInterpreter == null) loadFoodModel();
+
+                int comma = dataUrl.indexOf(',');
+                if (comma < 0) throw new Exception("Invalid image data");
+
+                byte[] bytes = Base64.decode(
+                    dataUrl.substring(comma + 1), Base64.DEFAULT
+                );
+                original = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+                if (original == null) throw new Exception("Could not read photo");
+
+                Tensor inputTensor = foodInterpreter.getInputTensor(0);
+                int[] shape = inputTensor.shape();
+
+                if (shape.length != 4 || shape[0] != 1 || shape[3] != 3
+                    || inputTensor.dataType() != DataType.FLOAT32) {
+                    throw new Exception("Unsupported model input format");
+                }
+
+                int height = shape[1];
+                int width = shape[2];
+                resized = Bitmap.createScaledBitmap(original, width, height, true);
+
+                int[] pixels = new int[width * height];
+                resized.getPixels(pixels, 0, width, 0, 0, width, height);
+
+                ByteBuffer input = ByteBuffer.allocateDirect(inputTensor.numBytes())
+                    .order(ByteOrder.nativeOrder());
+
+                for (int pixel : pixels) {
+                    input.putFloat(((pixel >> 16) & 255) / 255.0f);
+                    input.putFloat(((pixel >> 8) & 255) / 255.0f);
+                    input.putFloat((pixel & 255) / 255.0f);
+                }
+                input.rewind();
+
+                Tensor outputTensor = foodInterpreter.getOutputTensor(0);
+                int[] outputShape = outputTensor.shape();
+
+                if (outputShape.length != 2 || outputShape[0] != 1
+                    || outputTensor.dataType() != DataType.FLOAT32) {
+                    throw new Exception("Unsupported model output format");
+                }
+
+                int count = outputShape[1];
+                float[][] scores = new float[1][count];
+                foodInterpreter.run(input, scores);
+
+                Integer[] indices = new Integer[Math.max(0, count - 1)];
+                for (int i = 1; i < count; i++) indices[i - 1] = i;
+
+                Arrays.sort(indices, (a, b) ->
+                    Float.compare(scores[0][b], scores[0][a])
+                );
+
+                JSONArray matches = new JSONArray();
+                for (int i = 0; i < Math.min(5, indices.length); i++) {
+                    int index = indices[i];
+                    if (index >= foodLabels.length || foodLabels[index] == null) continue;
+
+                    JSONObject item = new JSONObject();
+                    item.put("name", foodLabels[index]);
+                    item.put("score", scores[0][index]);
+                    matches.put(item);
+                }
+
+                JSONObject result = new JSONObject();
+                result.put("results", matches);
+                response = result.toString();
+
+            } catch (Exception e) {
+                JSONObject error = new JSONObject();
+                try {
+                    error.put("error", e.getMessage() == null
+                        ? "Recognition failed" : e.getMessage());
+                } catch (Exception ignored) {}
+                response = error.toString();
+            } finally {
+                if (resized != null && resized != original) resized.recycle();
+                if (original != null) original.recycle();
+            }
+
+            final String result = response;
+            runOnUiThread(() -> {
+                if (webView != null) {
+                    webView.evaluateJavascript(
+                        "window.onFoodRecognition && window.onFoodRecognition("
+                        + JSONObject.quote(result) + ")",
+                        null
+                    );
+                }
+            });
+        });
+    }
+
+    private void loadFoodModel() throws Exception {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+
+        try (InputStream stream = getAssets().open("food_classifier.tflite")) {
+            byte[] buffer = new byte[8192];
+            int length;
+            while ((length = stream.read(buffer)) != -1) {
+                bytes.write(buffer, 0, length);
+            }
+        }
+
+        ByteBuffer model = ByteBuffer.allocateDirect(bytes.size())
+            .order(ByteOrder.nativeOrder());
+        model.put(bytes.toByteArray());
+        model.rewind();
+
+        foodInterpreter = new Interpreter(model);
+
+        int count = foodInterpreter.getOutputTensor(0).shape()[1];
+        foodLabels = new String[count];
+
+        try (BufferedReader reader = new BufferedReader(
+            new InputStreamReader(
+                getAssets().open("aiy_food_V1_labelmap.csv"), "UTF-8"
+            )
+        )) {
+            reader.readLine();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] parts = line.split(",", 2);
+                if (parts.length != 2) continue;
+
+                try {
+                    int index = Integer.parseInt(parts[0].trim());
+                    if (index >= 0 && index < count) {
+                        foodLabels[index] = parts[1].trim();
+                    }
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+    }
 
     private boolean matchesFoodQuery(String query, String name) {
         String[] terms = query.toLowerCase()
@@ -301,6 +460,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         executor.shutdownNow();
+
+        if (foodInterpreter != null) foodInterpreter.close();
 
         if (webView != null) {
             webView.destroy();
