@@ -575,7 +575,7 @@ const mood=$('mjMood').value;if(!mood){$('mjMoodStatus').textContent='Check-in s
 const a=get('mj_mood_v1').filter(x=>x.date!==today());a.push({date:today(),mood});put('mj_mood_v1',a);$('mjMoodStatus').textContent='Check-in saved.';
 };
 const style=document.createElement('style');
-style.textContent='
+style.textContent=`
 body.mj-dark{--bg:#171d19;--surface:#242d27;--ink:#edf4ee;--muted:#b8c5bb;--line:#465349;--pale:#344b3a;--green:#8dcc9f;--green-dark:#b0dfbb}
 body.mj-dark .hero-card{background:linear-gradient(135deg,#263b2e,#202d25)!important;border:1px solid #465349}
 body.mj-dark .hero-card p{color:#c1cec4!important}
@@ -596,7 +596,7 @@ body.mj-dark input::placeholder,body.mj-dark textarea::placeholder{color:#aab8ad
 body.mj-dark .btn.secondary,body.mj-dark .entry-actions button,body.mj-dark .weight-item button{background:#3b5141;color:#d8eee0}
 body.mj-dark .btn.warn{background:#59383d;color:#ffdce0}
 body.mj-dark .link{color:#a9d9b5}
-';
+`;
 document.head.appendChild(style);
 $('mjDark').checked=localStorage.getItem('mj_dark_v1')==='true';
 document.body.classList.toggle('mj-dark',$('mjDark').checked);
