@@ -96,6 +96,9 @@
         <div><label for="mealCarbs">Carbohydrates (g)</label><input id="mealCarbs" type="number" min="0" step="0.1" placeholder="Optional"></div>
         <div><label for="mealFat">Fat (g)</label><input id="mealFat" type="number" min="0" step="0.1" placeholder="Optional"></div>
         <div><label for="mealFiber">Fibre (g)</label><input id="mealFiber" type="number" min="0" step="0.1" placeholder="Optional"></div>
+<div><label for="mealSugar">Sugar (g)</label><input id="mealSugar" type="number" min="0" step="0.1"></div>
+<div><label for="mealSatFat">Saturated fat (g)</label><input id="mealSatFat" type="number" min="0" step="0.1"></div>
+<div><label for="mealSodium">Sodium (mg)</label><input id="mealSodium" type="number" min="0" step="1"></div>
       </div>
       <label for="photo">Meal photo (optional)</label><input id="photo" type="file" accept="image/*" capture="environment"><img id="preview" class="photo" alt="Selected meal photo preview">
       <label for="notes">Notes (optional)</label><textarea id="notes" placeholder="Anything you want to remember about this meal…"></textarea>
@@ -164,7 +167,37 @@
     <label for="usdaKey">USDA API key</label><input id="usdaKey" type="password" placeholder="Paste your API key">
     <div class="actions"><button class="btn" id="saveUsdaKey">Save API key</button><a class="link" href="https://api.data.gov/signup/" target="_blank" rel="noopener">Get a free key</a></div>
   </div>
-  <div class="card"><h3 style="margin:0 0 5px">About Meal Journal</h3><p class="muted" style="font-size:.83rem;margin-bottom:0">Food search combines Open Food Facts and USDA FoodData Central. Database values can vary in completeness and accuracy. Meal photos and journal records are saved locally on this device.</p></div>
+  
+<div class="card" id="mjExtras">
+<h3>Saved meals</h3>
+<label for="mjTemplateName">Meal name</label>
+<input id="mjTemplateName" placeholder="Name this meal">
+<div class="actions">
+<button class="btn secondary" type="button" id="mjSaveTemplate">Save current meal</button>
+<button class="btn secondary" type="button" id="mjLoadTemplate">Load selected meal</button>
+</div>
+<select id="mjTemplates"><option value="">Choose saved meal</option></select>
+</div>
+<div class="card">
+<h3>Daily check-in</h3>
+<label for="mjWater">Water amount (ml)</label>
+<input id="mjWater" type="number" min="1" placeholder="Amount">
+<button class="btn secondary" type="button" id="mjAddWater">Add water</button>
+<p id="mjWaterTotal" class="muted"></p>
+<label for="mjMood">How are you feeling? (optional)</label>
+<select id="mjMood"><option value="">Skip</option><option>Great</option><option>Good</option><option>Okay</option><option>Low</option><option>Stressed</option><option>Exhausted</option></select>
+<button class="btn secondary" type="button" id="mjSaveMood">Save check-in</button>
+<p id="mjMoodStatus" class="muted"></p>
+</div>
+<div class="card">
+<h3>Appearance</h3>
+<label><input id="mjDark" type="checkbox" style="width:auto"> Dark mode</label>
+</div>
+<div class="card">
+<h3>Spreadsheet export</h3>
+<button class="btn secondary" type="button" id="mjCSV">Export meals as CSV</button>
+</div>
+<div class="card"><h3 style="margin:0 0 5px">About Meal Journal</h3><p class="muted" style="font-size:.83rem;margin-bottom:0">Food search combines Open Food Facts and USDA FoodData Central. Database values can vary in completeness and accuracy. Meal photos and journal records are saved locally on this device.</p></div>
 </section>
 </main>
 </div>
@@ -198,10 +231,10 @@ function fmt(s){const d=new Date(s);return isNaN(d)?s:d.toLocaleTimeString([],{h
 function fmtNum(n){return (Math.round((Number(n)||0)*10)/10).toString()}
 function switchTab(id){document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===id));document.querySelectorAll('.bottom button').forEach(b=>b.classList.toggle('active',b.dataset.tab===id));if(id==='weight')renderWeights();if(id==='home')renderHome()}
 document.querySelectorAll('.bottom button').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
-function reset(){ $('mealForm').reset();$('editId').value='';$('formTitle').textContent='Add a meal';$('saveBtn').textContent='Save meal';$('mealDate').value=localDateTime();currentPhoto='';$('preview').style.display='none';$('preview').src='';$('foodSearchResults').className='product';$('foodSearchResults').innerHTML='';['mealCalories','mealProtein','mealCarbs','mealFat','mealFiber'].forEach(id=>$(id).value='');$('servingGrams').value='100'}
+function reset(){ $('mealForm').reset();$('editId').value='';$('formTitle').textContent='Add a meal';$('saveBtn').textContent='Save meal';$('mealDate').value=localDateTime();currentPhoto='';$('preview').style.display='none';$('preview').src='';$('foodSearchResults').className='product';$('foodSearchResults').innerHTML='';['mealCalories','mealProtein','mealCarbs','mealFat','mealFiber','mealSugar','mealSatFat','mealSodium'].forEach(id=>$(id).value='');$('servingGrams').value='100'}
 $('resetForm').onclick=reset;
 $('photo').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;if(f.size>8*1024*1024){alert('Please choose an image under 8 MB.');e.target.value='';return}const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const c=document.createElement('canvas'),scale=Math.min(1,1200/Math.max(img.width,img.height));c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);c.getContext('2d').drawImage(img,0,0,c.width,c.height);currentPhoto=c.toDataURL('image/jpeg',.78);$('preview').src=currentPhoto;$('preview').style.display='block'};img.src=r.result};r.readAsDataURL(f)});
-$('mealForm').onsubmit=e=>{e.preventDefault();const id=$('editId').value||makeId(),old=entries.find(x=>x.id===id),item={id,type:$('mealType').value,date:$('mealDate').value,foods:$('foods').value.trim(),notes:$('notes').value.trim(),photo:currentPhoto||old?.photo||'',calories:num('mealCalories',old?.calories),protein:num('mealProtein',old?.protein),carbs:num('mealCarbs',old?.carbs),fat:num('mealFat',old?.fat),fiber:num('mealFiber',old?.fiber),servingGrams:num('servingGrams',old?.servingGrams||100)};if(old)entries=entries.map(x=>x.id===id?item:x);else entries.push(item);persist();selectedDay=new Date(item.date);reset();render();switchTab('diary')};
+$('mealForm').onsubmit=e=>{e.preventDefault();const id=$('editId').value||makeId(),old=entries.find(x=>x.id===id),item={id,type:$('mealType').value,date:$('mealDate').value,foods:$('foods').value.trim(),notes:$('notes').value.trim(),photo:currentPhoto||old?.photo||'',calories:num('mealCalories',old?.calories),protein:num('mealProtein',old?.protein),carbs:num('mealCarbs',old?.carbs),fat:num('mealFat',old?.fat),fiber:num('mealFiber',old?.fiber),sugar:num('mealSugar',old?.sugar),satFat:num('mealSatFat',old?.satFat),sodium:num('mealSodium',old?.sodium),servingGrams:num('servingGrams',old?.servingGrams||100)};if(old)entries=entries.map(x=>x.id===id?item:x);else entries.push(item);persist();selectedDay=new Date(item.date);reset();render();switchTab('diary')};
 function makeId(){return (crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2)}
 function totals(list){return list.reduce((a,x)=>({calories:a.calories+(Number(x.calories)||0),protein:a.protein+(Number(x.protein)||0),carbs:a.carbs+(Number(x.carbs)||0),fat:a.fat+(Number(x.fat)||0),fiber:a.fiber+(Number(x.fiber)||0)}),{calories:0,protein:0,carbs:0,fat:0,fiber:0})}
 function render(){const key=dayKey(selectedDay),today=localDate(),daily=entries.filter(x=>(x.date||'').slice(0,10)===key),t=totals(daily);$('headerDate').textContent=key===today?'Today':selectedDay.toLocaleDateString([],{month:'short',day:'numeric'});$('dateLabel').textContent=key===today?'Today':selectedDay.toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'});$('selectedDate').textContent=selectedDay.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});$('dayCalories').textContent=fmtNum(t.calories);$('dayProtein').textContent=fmtNum(t.protein)+' g';$('dayCarbs').textContent=fmtNum(t.carbs)+' g';$('dayFat').textContent=fmtNum(t.fat)+' g';$('dayFiber').textContent=fmtNum(t.fiber)+' g';$('mealSections').innerHTML=types.map(type=>{const group=daily.filter(x=>x.type===type).sort((a,b)=>a.date.localeCompare(b.date));return `<div class="meal-row"><div class="meal-icon">${icons[type]}</div><div><h3>${type}</h3><p>${group.length?`${group.length} ${group.length===1?'entry':'entries'}`:'No entries yet'}</p></div><button class="add-round" onclick="addFor('${type}')" aria-label="Add ${type}">+</button></div><div class="meal-items">${group.map(x=>`<article class="entry"><strong>${esc(fmt(x.date))}</strong><p>${esc(x.foods)}</p><p class="muted">${fmtNum(x.calories)} kcal · P ${fmtNum(x.protein)} g · C ${fmtNum(x.carbs)} g · F ${fmtNum(x.fat)} g · Fibre ${fmtNum(x.fiber||0)} g</p>${x.notes?`<p class="muted">${esc(x.notes)}</p>`:''}${x.photo?`<img src="${x.photo}" alt="Meal photo">`:''}<div class="entry-actions"><button onclick="editEntry('${x.id}')">Edit</button><button onclick="deleteEntry('${x.id}')">Delete</button></div></article>`).join('')}</div>`}).join('')}
@@ -222,7 +255,7 @@ const dayNumber=Math.floor(new Date().setHours(0,0,0,0)/86400000);
 $('dailyAffirmation').textContent=affirmations[((dayNumber%affirmations.length)+affirmations.length)%affirmations.length];
 const today=localDate(),daily=entries.filter(x=>(x.date||'').slice(0,10)===today),t=totals(daily),latest=[...weights].sort((a,b)=>b.date.localeCompare(a.date))[0];$('homeDate').textContent=new Date().toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});$('headerDate').textContent='Today';$('homeCalories').textContent=fmtNum(t.calories);$('homeMeals').textContent=daily.length;$('homeProtein').textContent=fmtNum(t.protein)+' g';$('homeMacroProtein').textContent=fmtNum(t.protein)+' g';$('homeMacroCarbs').textContent=fmtNum(t.carbs)+' g';$('homeMacroFat').textContent=fmtNum(t.fat)+' g';$('homeMacroFiber').textContent=fmtNum(t.fiber)+' g';$('homeWeight').textContent=latest?`${fmtNum(latest.value)} ${latest.unit}`:'—';$('homeWeightNote').textContent=weights.length?`${weights.length} ${weights.length===1?'entry':'entries'} in your weight journal.`:'No weight entries yet. You can add one whenever you choose.';const preview=$('homeMealPreview');preview.innerHTML=daily.length?daily.slice().sort((a,b)=>a.date.localeCompare(b.date)).slice(0,3).map(x=>`<div class="entry"><strong>${esc(x.type)} · ${esc(fmt(x.date))}</strong><p>${esc(x.foods)}</p></div>`).join(''):'<div class="empty">Your meal entries will appear here.</div>'}
 window.addFor=type=>{$('mealType').value=type;$('mealDate').value=dayKey(selectedDay)+'T12:00';$('editId').value='';$('formTitle').textContent='Add a meal';$('saveBtn').textContent='Save meal';switchTab('add')};
-window.editEntry=id=>{const x=entries.find(e=>e.id===id);if(!x)return;$('editId').value=x.id;$('mealType').value=x.type;$('mealDate').value=x.date;$('foods').value=x.foods;$('notes').value=x.notes||'';$('mealCalories').value=x.calories??'';$('mealProtein').value=x.protein??'';$('mealCarbs').value=x.carbs??'';$('mealFat').value=x.fat??'';$('mealFiber').value=x.fiber??'';$('servingGrams').value=x.servingGrams??100;currentPhoto=x.photo||'';if(currentPhoto){$('preview').src=currentPhoto;$('preview').style.display='block'}$('formTitle').textContent='Edit meal';$('saveBtn').textContent='Save changes';switchTab('add')};
+window.editEntry=id=>{const x=entries.find(e=>e.id===id);if(!x)return;$('editId').value=x.id;$('mealType').value=x.type;$('mealDate').value=x.date;$('foods').value=x.foods;$('notes').value=x.notes||'';$('mealCalories').value=x.calories??'';$('mealProtein').value=x.protein??'';$('mealCarbs').value=x.carbs??'';$('mealFat').value=x.fat??'';$('mealFiber').value=x.fiber??'';$('mealSugar').value=x.sugar??'';$('mealSatFat').value=x.satFat??'';$('mealSodium').value=x.sodium??'';$('servingGrams').value=x.servingGrams??100;currentPhoto=x.photo||'';if(currentPhoto){$('preview').src=currentPhoto;$('preview').style.display='block'}$('formTitle').textContent='Edit meal';$('saveBtn').textContent='Save changes';switchTab('add')};
 window.deleteEntry=id=>{if(!confirm('Delete this meal entry?'))return;entries=entries.filter(x=>x.id!==id);persist();render();renderHome()};
 $('prevDay').onclick=()=>{selectedDay.setDate(selectedDay.getDate()-1);render()};$('nextDay').onclick=()=>{selectedDay.setDate(selectedDay.getDate()+1);render()};$('dateLabel').onclick=()=>{selectedDay=new Date();selectedDay.setHours(12,0,0,0);render()};
 function renderWeights(){const list=[...weights].sort((a,b)=>a.date.localeCompare(b.date));$('weightList').innerHTML=list.length?list.slice().reverse().map(x=>`<div class="weight-item"><div><strong>${fmtNum(x.value)} ${esc(x.unit)}</strong><br><small>${new Date(x.date+'T12:00:00').toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'})}${x.note?' · '+esc(x.note):''}</small></div><button onclick="deleteWeight('${x.id}')">Delete</button></div>`).join(''):'<div class="empty">No weight entries yet.</div>';drawWeightChart(list);renderHome()}
@@ -418,6 +451,60 @@ $('estimateMaintenance').onclick=()=>{
 function rollover(){const today=localDate();if($('headerDate').textContent!=='Today')render();renderHome()}
 $('weightDate').value=localDate();$('weightUnit').value='kg';reset();render();renderHome();renderWeights();
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){render();renderHome()}});
+
+/* mjUpdate_v1 */
+(()=>{
+const get=k=>{try{return JSON.parse(localStorage.getItem(k)||'[]')}catch{return []}};
+const put=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+const today=()=>dayKey(new Date());
+const templates=get('mj_templates_v1');
+const sel=$('mjTemplates');
+function refresh(){
+sel.innerHTML='<option value="">Choose saved meal</option>';
+templates.forEach((x,i)=>{const o=document.createElement('option');o.value=i;o.textContent=x.name;sel.appendChild(o)});
+}
+refresh();
+$('mjSaveTemplate').onclick=()=>{
+const name=$('mjTemplateName').value.trim();
+if(!name||!$('foods').value.trim()){alert('Enter a meal and a name first.');return}
+templates.push({name,type:$('mealType').value,foods:$('foods').value,calories:$('mealCalories').value,protein:$('mealProtein').value,carbs:$('mealCarbs').value,fat:$('mealFat').value,fiber:$('mealFiber').value,sugar:$('mealSugar').value,satFat:$('mealSatFat').value,sodium:$('mealSodium').value,servingGrams:$('servingGrams').value,notes:$('notes').value});
+put('mj_templates_v1',templates);refresh();alert('Meal saved.');
+};
+$('mjLoadTemplate').onclick=()=>{
+const x=templates[Number(sel.value)];if(!x){alert('Choose a saved meal.');return}
+for(const k of ['type','foods','calories','protein','carbs','fat','fiber','sugar','satFat','sodium','servingGrams','notes']){
+const id={type:'mealType',calories:'mealCalories',protein:'mealProtein',carbs:'mealCarbs',fat:'mealFat',fiber:'mealFiber',sugar:'mealSugar',satFat:'mealSatFat',sodium:'mealSodium',servingGrams:'servingGrams',foods:'foods',notes:'notes'}[k];
+$(id).value=x[k]??'';
+}
+switchTab('add');
+};
+function waterTotal(){
+const total=get('mj_water_v1').filter(x=>x.date===today()).reduce((a,x)=>a+x.ml,0);
+$('mjWaterTotal').textContent='Water logged today: '+total+' ml';
+}
+$('mjAddWater').onclick=()=>{
+const ml=Number($('mjWater').value);if(!Number.isFinite(ml)||ml<=0){alert('Enter a valid amount.');return}
+const a=get('mj_water_v1');a.push({date:today(),ml});put('mj_water_v1',a);$('mjWater').value='';waterTotal();
+};
+waterTotal();
+$('mjSaveMood').onclick=()=>{
+const mood=$('mjMood').value;if(!mood){$('mjMoodStatus').textContent='Check-in skipped.';return}
+const a=get('mj_mood_v1').filter(x=>x.date!==today());a.push({date:today(),mood});put('mj_mood_v1',a);$('mjMoodStatus').textContent='Check-in saved.';
+};
+const style=document.createElement('style');
+style.textContent='body.mj-dark{--bg:#171d19;--surface:#242d27;--ink:#edf4ee;--muted:#aab8ad;--line:#39453c;--pale:#344b3a;--green:#75bd8d;--green-dark:#a1d4ae}body.mj-dark input,body.mj-dark textarea,body.mj-dark select,body.mj-dark .bottom{background:#242d27;color:#edf4ee;border-color:#39453c}body.mj-dark .entry,body.mj-dark .macro,body.mj-dark .weight-item{background:#2c382f;border-color:#39453c}';
+document.head.appendChild(style);
+$('mjDark').checked=localStorage.getItem('mj_dark_v1')==='true';
+document.body.classList.toggle('mj-dark',$('mjDark').checked);
+$('mjDark').onchange=()=>{const v=$('mjDark').checked;document.body.classList.toggle('mj-dark',v);localStorage.setItem('mj_dark_v1',String(v))};
+$('mjCSV').onclick=()=>{
+const cols=['Date','Meal','Foods','Calories','Protein','Carbs','Fat','Fibre','Sugar','Saturated fat','Sodium','Notes'];
+const rows=entries.map(x=>[x.date,x.type,x.foods,x.calories,x.protein,x.carbs,x.fat,x.fiber,x.sugar,x.satFat,x.sodium,x.notes]);
+const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+download(new Blob(['\uFEFF'+[cols,...rows].map(r=>r.map(q).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}),'meal-journal.csv');
+};
+})();
+
 </script>
 </body>
 </html>
