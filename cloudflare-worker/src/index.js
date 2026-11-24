@@ -31,27 +31,6 @@ export default {
     }
 
     try {
-      if (url.pathname === "/api/ninjas/nutrition") {
-        const query = url.searchParams.get("q")?.trim();
-
-        if (!query || query.length > 300) {
-          return json({ error: "A nutrition query is required (max 300 characters)." }, 400);
-        }
-
-        if (!env.API_NINJAS_KEY) {
-          return json({ error: "API Ninjas credentials are not configured." }, 503);
-        }
-
-        const endpoint = new URL("https://api.api-ninjas.com/v1/nutrition");
-        endpoint.searchParams.set("query", query);
-
-        const response = await fetch(endpoint, {
-          headers: { "X-Api-Key": env.API_NINJAS_KEY }
-        });
-
-        return json(await response.json(), response.status);
-      }
-
       if (url.pathname === "/api/off/product") {
         const barcode = url.searchParams.get("barcode")?.trim();
 
