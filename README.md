@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Meal Journal Android project
 
 This wraps the existing Meal Journal web app in a lightweight Android WebView shell.
