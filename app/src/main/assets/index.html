@@ -23,7 +23,13 @@
     <h3 style="margin:0 0 5px">A thought for today ✿</h3>
     <p id="dailyAffirmation" class="muted" style="margin:0">You deserve kindness, including from yourself.</p>
   </div>
-  <div class="card hero-card">
+  <div class="card" id="mjStreakCard">
+<h3>✿ Your logging journey</h3>
+<strong id="mjStreakNumber" style="font-size:1.8rem">0 days</strong>
+<p id="mjStreakMessage" class="muted">Every entry is optional. Your progress is yours.</p>
+<small id="mjBestStreak" class="muted"></small>
+</div>
+<div class="card hero-card">
     <div class="hero-grid">
       <div class="ring" id="calorieRing"><div class="ring-inner"><strong id="homeCalories">0</strong><span>kcal logged</span></div></div>
       <div><h3>Your food journal</h3><p>A simple snapshot of the meals you've chosen to record today. No targets or scores.</p></div>
@@ -49,7 +55,29 @@
 
 <section id="diary" class="panel">
   <div class="date-nav"><button id="prevDay" aria-label="Previous day">‹</button><button class="today" id="dateLabel">Today</button><button id="nextDay" aria-label="Next day">›</button></div>
-  <div class="section-head"><h2>Food diary</h2><small id="selectedDate"></small></div>
+  <div class="card">
+<h3>Calendar</h3>
+<div class="actions">
+<button class="btn secondary" id="mjPrevMonth" type="button">Previous</button>
+<strong id="mjMonthLabel"></strong>
+<button class="btn secondary" id="mjNextMonth" type="button">Next</button>
+</div>
+<div id="mjCalendar" style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:12px"></div>
+</div>
+<div class="card">
+<h3>Nutrition and logging trends</h3>
+<label for="mjTrendMetric">View</label>
+<select id="mjTrendMetric">
+<option value="meals">Meals recorded</option>
+<option value="protein">Protein</option>
+<option value="carbs">Carbohydrates</option>
+<option value="fat">Fat</option>
+<option value="fiber">Fibre</option>
+<option value="calories">Calories</option>
+</select>
+<div id="mjTrends" style="margin-top:12px"></div>
+</div>
+<div class="section-head"><h2>Food diary</h2><small id="selectedDate"></small></div>
   <div class="card">
     <h2 style="font-size:1rem;margin:0 0 12px">Nutrition recorded</h2>
     <div class="macro-grid">
@@ -89,7 +117,20 @@
         <div id="foodSearchResults" class="product"></div>
       </div>
       <label for="foods">What did you eat?</label><textarea id="foods" placeholder="Add foods in your own words…" required></textarea>
-      <label for="servingGrams">Serving size (grams)</label><input id="servingGrams" type="number" min="0" step="1" value="100" placeholder="100">
+      <div class="card" style="margin:12px 0;padding:13px;box-shadow:none">
+<h3>Serving converter</h3>
+<div class="form-grid">
+<div><label for="mjUnitAmount">Amount</label><input id="mjUnitAmount" type="number" min="0" step="0.1" value="1"></div>
+<div><label for="mjUnitSelect">Unit</label><select id="mjUnitSelect">
+<option value="g">Grams</option><option value="ml">Millilitres</option>
+<option value="oz">Ounces</option><option value="cup">Cups</option>
+<option value="tbsp">Tablespoons</option><option value="tsp">Teaspoons</option>
+</select></div>
+</div>
+<button class="btn secondary" id="mjConvert" type="button">Convert to grams</button>
+<p id="mjConversionResult" class="muted"></p>
+</div>
+<label for="servingGrams">Serving size (grams)</label><input id="servingGrams" type="number" min="0" step="1" value="100" placeholder="100">
       <div class="form-grid">
         <div><label for="mealCalories">Calories (kcal)</label><input id="mealCalories" type="number" min="0" step="0.1" placeholder="Optional"></div>
         <div><label for="mealProtein">Protein (g)</label><input id="mealProtein" type="number" min="0" step="0.1" placeholder="Optional"></div>
@@ -196,6 +237,48 @@
 <div class="card">
 <h3>Spreadsheet export</h3>
 <button class="btn secondary" type="button" id="mjCSV">Export meals as CSV</button>
+</div>
+<div class="card">
+<h3>Food library</h3>
+<p class="muted">Your saved foods work offline on this device.</p>
+<button class="btn secondary" type="button" id="mjSaveFood">Save current food</button>
+<div id="mjFoodLibrary"></div>
+</div>
+<div class="card">
+<h3>Recipe builder</h3>
+<label for="mjRecipeName">Recipe name</label>
+<input id="mjRecipeName" placeholder="Name your recipe">
+<label for="mjRecipeIngredients">Ingredients</label>
+<textarea id="mjRecipeIngredients" placeholder="List the ingredients"></textarea>
+<label for="mjRecipeServings">Number of servings</label>
+<input id="mjRecipeServings" type="number" min="1" value="1">
+<p class="muted">Enter the nutrition for the whole recipe if known. Loading it into a meal divides these values by the servings entered.</p>
+<div class="form-grid">
+<div><label for="mjRecipeCalories">Calories</label><input id="mjRecipeCalories" type="number" min="0"></div>
+<div><label for="mjRecipeProtein">Protein (g)</label><input id="mjRecipeProtein" type="number" min="0"></div>
+<div><label for="mjRecipeCarbs">Carbs (g)</label><input id="mjRecipeCarbs" type="number" min="0"></div>
+<div><label for="mjRecipeFat">Fat (g)</label><input id="mjRecipeFat" type="number" min="0"></div>
+<div><label for="mjRecipeFiber">Fibre (g)</label><input id="mjRecipeFiber" type="number" min="0"></div>
+</div>
+<button class="btn secondary" type="button" id="mjSaveRecipe">Save recipe</button>
+<label for="mjRecipeList">Saved recipes</label>
+<select id="mjRecipeList"><option value="">Choose a recipe</option></select>
+<button class="btn secondary" type="button" id="mjLoadRecipe">Load into meal</button>
+</div>
+<div class="card">
+<h3>Custom serving units</h3>
+<p class="muted">Create your own units by entering how many grams one unit represents.</p>
+<div class="form-grid">
+<div><label for="mjCustomUnitName">Unit name</label><input id="mjCustomUnitName" placeholder="e.g. bowl"></div>
+<div><label for="mjCustomUnitGrams">Grams per unit</label><input id="mjCustomUnitGrams" type="number" min="0.1" step="0.1"></div>
+</div>
+<button class="btn secondary" type="button" id="mjSaveUnit">Save custom unit</button>
+<div id="mjCustomUnits"></div>
+</div>
+<div class="card">
+<h3>Logging streak</h3>
+<label><input type="checkbox" id="mjHideStreak" style="width:auto"> Hide streak display</label>
+<p class="muted">A streak is just an optional record of days with entries. Missing a day is not a failure.</p>
 </div>
 <div class="card"><h3 style="margin:0 0 5px">About Meal Journal</h3><p class="muted" style="font-size:.83rem;margin-bottom:0">Food search combines Open Food Facts and USDA FoodData Central. Database values can vary in completeness and accuracy. Meal photos and journal records are saved locally on this device.</p></div>
 </section>
@@ -502,6 +585,204 @@ const cols=['Date','Meal','Foods','Calories','Protein','Carbs','Fat','Fibre','Su
 const rows=entries.map(x=>[x.date,x.type,x.foods,x.calories,x.protein,x.carbs,x.fat,x.fiber,x.sugar,x.satFat,x.sodium,x.notes]);
 const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
 download(new Blob(['\uFEFF'+[cols,...rows].map(r=>r.map(q).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}),'meal-journal.csv');
+};
+})();
+
+
+/* MJ_SECOND_UPDATE_V1 */
+(()=>{
+const read=k=>{try{return JSON.parse(localStorage.getItem(k)||'[]')}catch{return []}};
+const write=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+const keys={foods:'mj_food_library_v1',recipes:'mj_recipes_v1',units:'mj_custom_units_v1'};
+const today=()=>dayKey(new Date());
+let month=new Date();month.setDate(1);
+const safeId=()=>String(Date.now())+Math.random().toString(36).slice(2,7);
+const nutrientIds={calories:'mealCalories',protein:'mealProtein',carbs:'mealCarbs',fat:'mealFat',fiber:'mealFiber'};
+const metricNames={meals:'Meals recorded',calories:'Calories',protein:'Protein',carbs:'Carbohydrates',fat:'Fat',fiber:'Fibre'};
+
+function uniqueDays(){
+ return [...new Set(entries.map(x=>(x.date||'').slice(0,10)).filter(Boolean))].sort();
+}
+function streakStats(){
+ const days=uniqueDays();let best=0,run=0,prev=null;
+ days.forEach(k=>{
+  const d=new Date(k+'T12:00:00');
+  const gap=prev?(d-new Date(prev+'T12:00:00'))/86400000:0;
+  run=prev&&gap===1?run+1:1;
+  best=Math.max(best,run);prev=k;
+ });
+ let current=0;
+ if(days.length){
+  const last=days[days.length-1],gap=(new Date(today()+'T12:00:00')-new Date(last+'T12:00:00'))/86400000;
+  if(gap===0||gap===1){
+   current=1;let cursor=new Date(last+'T12:00:00');
+   for(let i=days.length-2;i>=0;i--){
+    cursor.setDate(cursor.getDate()-1);
+    if(days[i]===dayKey(cursor))current++;else break;
+   }
+  }
+ }
+ return {current,best};
+}
+function renderStreak(){
+ const hidden=localStorage.getItem('mj_hide_streak')==='true';
+ $('mjStreakCard').classList.toggle('hidden',hidden);
+ $('mjHideStreak').checked=hidden;
+ if(hidden)return;
+ const s=streakStats();
+ $('mjStreakNumber').textContent=s.current+' '+(s.current===1?'day':'days');
+ $('mjStreakMessage').textContent=s.current?'Your recent logging journey. Keep it gentle.':'Whenever you choose to log, it counts.';
+ $('mjBestStreak').textContent='Longest run: '+s.best+' '+(s.best===1?'day':'days');
+}
+$('mjHideStreak').onchange=()=>{
+ localStorage.setItem('mj_hide_streak',String($('mjHideStreak').checked));renderStreak();
+};
+
+function renderCalendar(){
+ const year=month.getFullYear(),m=month.getMonth();
+ $('mjMonthLabel').textContent=month.toLocaleDateString([],{month:'long',year:'numeric'});
+ const first=new Date(year,m,1).getDay(),count=new Date(year,m+1,0).getDate();
+ const logged=new Set(uniqueDays());
+ let html=['S','M','T','W','T','F','S'].map(x=>`<span style="text-align:center;font-size:.75rem;color:var(--muted)">${x}</span>`).join('');
+ for(let i=0;i<first;i++)html+='<span></span>';
+ for(let d=1;d<=count;d++){
+  const key=dayKey(new Date(year,m,d,12)),has=logged.has(key),selected=key===dayKey(selectedDay);
+  html+=`<button type="button" data-mj-day="${key}" style="min-height:39px;border:1px solid var(--line);border-radius:10px;background:${selected?'var(--pale)':'var(--surface)'};color:var(--ink);font:inherit">${d}${has?'<span style="display:block;color:var(--green);font-size:10px">●</span>':''}</button>`;
+ }
+ $('mjCalendar').innerHTML=html;
+ $('mjCalendar').querySelectorAll('[data-mj-day]').forEach(b=>b.onclick=()=>{
+  selectedDay=new Date(b.dataset.mjDay+'T12:00:00');render();
+ });
+}
+$('mjPrevMonth').onclick=()=>{month.setMonth(month.getMonth()-1);renderCalendar()};
+$('mjNextMonth').onclick=()=>{month.setMonth(month.getMonth()+1);renderCalendar()};
+
+function renderTrends(){
+ const metric=$('mjTrendMetric').value;
+ const end=new Date();end.setHours(12,0,0,0);
+ const days=[];
+ for(let i=13;i>=0;i--){const d=new Date(end);d.setDate(d.getDate()-i);const key=dayKey(d),list=entries.filter(x=>(x.date||'').slice(0,10)===key);
+  const value=metric==='meals'?list.length:list.reduce((a,x)=>a+(Number(x[metric])||0),0);
+  days.push({key,value,label:d.toLocaleDateString([],{month:'numeric',day:'numeric'})});
+ }
+ const max=Math.max(1,...days.map(x=>x.value));
+ $('mjTrends').innerHTML=days.map(x=>`<div style="display:grid;grid-template-columns:43px 1fr 48px;gap:7px;align-items:center;margin:7px 0;font-size:.75rem"><span>${x.label}</span><div style="height:12px;background:var(--pale);border-radius:8px;overflow:hidden"><div style="height:100%;width:${x.value/max*100}%;background:var(--green);border-radius:8px"></div></div><span style="text-align:right">${fmtNum(x.value)}</span></div>`).join('')+
+ '<p class="muted" style="font-size:.75rem">Last 14 days · recorded information only, no targets.</p>';
+}
+$('mjTrendMetric').onchange=renderTrends;
+
+function fillFood(x){
+ $('foods').value=($('foods').value?$('foods').value+'\n':'')+x.name;
+ for(const [k,id] of Object.entries(nutrientIds))if(x[k]!==undefined)$(id).value=x[k];
+}
+function renderLibrary(){
+ const foods=read(keys.foods);
+ const recent=[...foods].sort((a,b)=>(b.used||0)-(a.used||0)).slice(0,12);
+ const fav=foods.filter(x=>x.favourite);
+ const item=x=>`<div class="entry"><strong>${esc(x.name)}</strong><p class="muted">${esc(x.source||'Saved on this device')}</p><div class="entry-actions"><button type="button" data-mj-use="${x.id}">Add to meal</button><button type="button" data-mj-fav="${x.id}">${x.favourite?'Unfavourite':'Favourite'}</button></div></div>`;
+ $('mjFoodLibrary').innerHTML='<h4>Favourites</h4>'+(fav.length?fav.map(item).join(''):'<p class="muted">No favourites yet.</p>')+'<h4>Recent foods</h4>'+(recent.length?recent.map(item).join(''):'<p class="muted">Foods you save or log will appear here.</p>');
+ $('mjFoodLibrary').querySelectorAll('[data-mj-use]').forEach(b=>b.onclick=()=>{
+  const x=read(keys.foods).find(z=>z.id===b.dataset.mjUse);if(x){fillFood(x);switchTab('add')}
+ });
+ $('mjFoodLibrary').querySelectorAll('[data-mj-fav]').forEach(b=>b.onclick=()=>{
+  const a=read(keys.foods),x=a.find(z=>z.id===b.dataset.mjFav);if(x){x.favourite=!x.favourite;write(keys.foods,a);renderLibrary()}
+ });
+}
+function rememberCurrentFood(){
+ const name=$('foods').value.trim();if(!name)return;
+ const a=read(keys.foods),key=name.toLowerCase();
+ let x=a.find(z=>z.name.toLowerCase()===key);
+ if(!x){x={id:safeId(),name,favourite:false};a.push(x)}
+ x.used=Date.now();x.source='Recent meal';
+ for(const [k,id] of Object.entries(nutrientIds))x[k]=Number($(id).value)||0;
+ write(keys.foods,a.slice(-100));renderLibrary();
+}
+$('mjSaveFood').onclick=()=>{
+ const name=$('foods').value.trim();if(!name){alert('Enter a food in the meal form first.');return}
+ rememberCurrentFood();alert('Saved to your food library.');
+};
+
+const originalSubmit=$('mealForm').onsubmit;
+$('mealForm').onsubmit=function(e){
+ const name=$('foods').value.trim();
+ const result=originalSubmit.call(this,e);
+ if(name){rememberCurrentFood();renderLibrary();renderStreak();renderCalendar();renderTrends()}
+ return result;
+};
+const oldDelete=window.deleteEntry;
+window.deleteEntry=id=>{oldDelete(id);renderStreak();renderCalendar();renderTrends()};
+
+function renderRecipes(){
+ const a=read(keys.recipes),sel=$('mjRecipeList'),old=sel.value;
+ sel.innerHTML='<option value="">Choose a recipe</option>';
+ a.forEach(x=>{const o=document.createElement('option');o.value=x.id;o.textContent=x.name;sel.appendChild(o)});
+ if(old)sel.value=old;
+}
+$('mjSaveRecipe').onclick=()=>{
+ const name=$('mjRecipeName').value.trim(),ingredients=$('mjRecipeIngredients').value.trim();
+ if(!name||!ingredients){alert('Enter a recipe name and ingredients.');return}
+ const x={id:safeId(),name,ingredients,servings:Math.max(1,Number($('mjRecipeServings').value)||1)};
+ for(const [k,id] of Object.entries(nutrientIds))x[k]=Number($('mjRecipe'+k[0].toUpperCase()+k.slice(1)).value)||0;
+ const a=read(keys.recipes);a.push(x);write(keys.recipes,a);renderRecipes();alert('Recipe saved.');
+};
+$('mjLoadRecipe').onclick=()=>{
+ const x=read(keys.recipes).find(z=>z.id===$('mjRecipeList').value);
+ if(!x){alert('Choose a saved recipe.');return}
+ $('foods').value=x.name+': '+x.ingredients;
+ $('notes').value='Recipe · '+x.servings+' servings';
+ for(const [k,id] of Object.entries(nutrientIds))$(id).value=fmtNum((x[k]||0)/x.servings);
+ switchTab('add');
+};
+
+const factors={g:1,ml:1,oz:28.3495,cup:240,tbsp:15,tsp:5};
+function renderUnits(){
+ const a=read(keys.units),sel=$('mjUnitSelect');
+ const keep=sel.value;
+ sel.innerHTML='<option value="g">Grams</option><option value="ml">Millilitres</option><option value="oz">Ounces</option><option value="cup">Cups</option><option value="tbsp">Tablespoons</option><option value="tsp">Teaspoons</option>';
+ a.forEach(x=>{const o=document.createElement('option');o.value='custom:'+x.name;o.textContent=x.name;sel.appendChild(o)});
+ if(keep)sel.value=keep;
+ $('mjCustomUnits').innerHTML=a.length?a.map(x=>`<p class="muted">${esc(x.name)} · ${fmtNum(x.grams)} g per unit</p>`).join(''):'<p class="muted">No custom units saved.</p>';
+}
+$('mjSaveUnit').onclick=()=>{
+ const name=$('mjCustomUnitName').value.trim(),grams=Number($('mjCustomUnitGrams').value);
+ if(!name||!Number.isFinite(grams)||grams<=0){alert('Enter a unit name and a valid gram amount.');return}
+ const a=read(keys.units);a.push({name,grams});write(keys.units,a);
+ $('mjCustomUnitName').value='';$('mjCustomUnitGrams').value='';renderUnits();
+};
+$('mjConvert').onclick=()=>{
+ const amount=Number($('mjUnitAmount').value),unit=$('mjUnitSelect').value;
+ const custom=unit.startsWith('custom:')?read(keys.units).find(x=>x.name===unit.slice(7)):null;
+ const factor=custom?custom.grams:factors[unit];
+ if(!Number.isFinite(amount)||amount<0||!factor){alert('Enter a valid amount.');return}
+ const grams=amount*factor;
+ $('servingGrams').value=fmtNum(grams);
+ $('mjConversionResult').textContent=fmtNum(amount)+' '+(custom?custom.name:unit)+' ≈ '+fmtNum(grams)+' g. Serving size updated.';
+};
+
+renderLibrary();renderRecipes();renderUnits();
+const originalRender=render;
+render=function(){originalRender();renderCalendar();renderTrends();renderStreak()};
+const originalHome=renderHome;
+renderHome=function(){originalHome();renderStreak()};
+render();renderHome();
+
+const oldExport=$('exportBtn').onclick;
+$('exportBtn').onclick=()=>{
+ const extras={};
+ [...Object.values(keys),'mj_water_v1','mj_mood_v1'].forEach(k=>extras[k]=read(k));
+ extras.mj_hide_streak=localStorage.getItem('mj_hide_streak')||'false';
+ download(new Blob([JSON.stringify({app:'Meal Journal',version:3,entries,weights,extras},null,2)],{type:'application/json'}),'meal-journal-backup.json');
+};
+const oldImport=$('importFile').onchange;
+$('importFile').onchange=async function(e){
+ const f=e.target.files?.[0];
+ if(f){try{
+  const d=JSON.parse(await f.text()),x=d.extras||{};
+  [...Object.values(keys),'mj_water_v1','mj_mood_v1'].forEach(k=>{if(Array.isArray(x[k]))write(k,x[k])});
+  if(x.mj_hide_streak!==undefined)localStorage.setItem('mj_hide_streak',x.mj_hide_streak);
+ }catch{}}
+ if(oldImport)await oldImport.call(this,e);
+ renderLibrary();renderRecipes();renderUnits();renderStreak();
 };
 })();
 
