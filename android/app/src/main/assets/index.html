@@ -1039,7 +1039,17 @@ $('importFile').onchange=async function(e){
         write(updated);
         render();
       };
-      card.append(title, details, edit, remove);
+      const add = document.createElement('button');
+      add.type = 'button';
+      add.textContent = 'Add to this meal';
+      add.onclick = () => {
+        const food = groceryAsFood(item);
+        window.foodSearchItems = window.foodSearchItems || [];
+        window.foodSearchItems.push(food);
+        window.useFoodResult(window.foodSearchItems.length - 1);
+        $('crumbScanStatus').textContent = 'Added ' + item.name + ' to the meal form. Set the serving size and save your meal.';
+      };
+      card.append(title, details, add, edit, remove);
       host.append(card);
     });
   }
@@ -1078,8 +1088,13 @@ $('importFile').onchange=async function(e){
       const result = typeof raw === 'string' ? JSON.parse(raw) : raw;
       const existing = read().find(x => x.barcode && x.barcode === result.barcode);
       if (existing) {
-        $('crumbScanStatus').textContent = 'Found your saved product: ' + existing.name;
-        showReview(existing);
+        $('crumbScanStatus').textContent = 'Found your saved product: ' + existing.name + '. Add it from the search result.';
+        const search = $('foodSearch');
+        if (search) {
+          search.value = existing.barcode || existing.name;
+          window.onFoodSearch('[]');
+          $('foodSearchResults')?.scrollIntoView({behavior:'smooth', block:'center'});
+        }
       } else {
         $('crumbScanStatus').textContent = 'Scan complete. Check the extracted details before saving.';
         showReview(parseOCR(result));
