@@ -534,6 +534,17 @@ $('parseFoodBtn').onclick=()=>{
 };
 
 
+function groceryAsFood(item){
+ const basis=item.basis||'100g';
+ const mass=basis==='serving'?Number(item.servingGrams):basis==='package'?Number(item.packageGrams):100;
+ const factor=basis==='100g'?1:(Number.isFinite(mass)&&mass>0?100/mass:null);
+ const out={name:item.name,brand:item.brand||'Saved grocery',source:'Saved grocery · this device'};
+ for(const key of ['calories','protein','carbs','fat','fiber','sugar','satFat','sodium']){
+  const value=item[key];
+  out[key]=value===''||value==null||factor===null?null:Number(value)*factor;
+ }
+ return out;
+}
 window.onFoodSearch=raw=>{
  let list=[];
  try{list=JSON.parse(raw)}catch{}
@@ -544,14 +555,19 @@ window.onFoodSearch=raw=>{
   searchNextNaturalFood();
   return;
  }
+ const query=String($('foodSearch')?.value||'').trim().toLowerCase();
+ let groceries=[];
+ try{groceries=JSON.parse(localStorage.getItem('mj_groceries_v1')||'[]')}catch{}
+ const local=groceries.filter(x=>!query||[x.name,x.brand,x.variant,x.barcode].some(v=>String(v||'').toLowerCase().includes(query))).map(groceryAsFood);
+ list=[...local,...list];
+ window.foodSearchItems=list;
  const box=$('foodSearchResults');
  box.className='product show';
  if(!list.length){
-  box.textContent='No results found. For USDA results, add your free API key in Profile. Try another search.';
+  box.textContent='No results found. Try another search.';
   return;
  }
- box.innerHTML=list.map((f,i)=>`<div class="entry"><strong>${esc(f.name)}</strong><p class="muted">${esc(f.brand||f.source)} · per 100 g</p><p>${fmtNum(f.calories||0)} kcal · Protein ${fmtNum(f.protein||0)} g · Carbs ${fmtNum(f.carbs||0)} g · Fat ${fmtNum(f.fat||0)} g · Fibre ${fmtNum(f.fiber||0)} g</p><button class="btn secondary" type="button" onclick="useFoodResult(${i})">Add to this meal</button></div>`).join('');
- window.foodSearchItems=list;
+ box.innerHTML=list.map((f,i)=>`<div class="entry"><strong>${esc(f.name)}</strong><p class="muted">${esc(f.brand||f.source)} · per 100 g</p><p>${f.calories==null?'Nutrition not fully available':fmtNum(f.calories)+' kcal'} · Protein ${f.protein==null?'—':fmtNum(f.protein)+' g'} · Carbs ${f.carbs==null?'—':fmtNum(f.carbs)+' g'} · Fat ${f.fat==null?'—':fmtNum(f.fat)+' g'} · Fibre ${f.fiber==null?'—':fmtNum(f.fiber)+' g'}</p><button class="btn secondary" type="button" onclick="useFoodResult(${i})">Add to this meal</button></div>`).join('');
 };
 window._selectedFoodNutrition=null;
 window.applyServingNutrition=()=>{
@@ -711,7 +727,7 @@ download(new Blob(['\uFEFF'+[cols,...rows].map(r=>r.map(q).join(',')).join('\r\n
 (()=>{
 const read=k=>{try{return JSON.parse(localStorage.getItem(k)||'[]')}catch{return []}};
 const write=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
-const keys={foods:'mj_food_library_v1',recipes:'mj_recipes_v1',units:'mj_custom_units_v1'};
+const keys={foods:'mj_food_library_v1',recipes:'mj_recipes_v1',units:'mj_custom_units_v1',groceries:'mj_groceries_v1'};
 const today=()=>dayKey(new Date());
 let month=new Date();month.setDate(1);
 const safeId=()=>String(Date.now())+Math.random().toString(36).slice(2,7);
@@ -905,5 +921,181 @@ $('importFile').onchange=async function(e){
 })();
 
 </script>
+
+<section id="crumbGroceryTools" style="margin:18px 0;padding:16px;border:1px solid var(--border,#ccc);border-radius:14px">
+  <h3>Grocery products</h3>
+  <p>Scan a barcode and package labels, or add a product manually.</p>
+  <button type="button" id="crumbScanBtn">Scan grocery product</button>
+  <button type="button" id="crumbCustomBtn">Add custom product</button>
+  <p id="crumbScanStatus" aria-live="polite"></p>
+  <div id="crumbReview" hidden>
+    <h4>Review product details</h4>
+    <form id="crumbGroceryForm">
+      <label>Barcode <input name="barcode" readonly></label>
+      <label>Product name <input name="name" required></label>
+      <label>Brand <input name="brand"></label>
+      <label>Flavour / variant <input name="variant"></label>
+      <label>Package size (g) <input name="packageGrams" type="number" min="0" step="any"></label>
+      <label>Serving size (g) <input name="servingGrams" type="number" min="0" step="any"></label>
+      <label>Nutrition values are for
+        <select name="basis">
+          <option value="100g">Per 100 g</option>
+          <option value="serving">Per serving</option>
+          <option value="package">Per package</option>
+        </select>
+      </label>
+      <h4>Nutrition information</h4>
+      <label>Calories <input name="calories" type="number" min="0" step="any"></label>
+      <label>Protein (g) <input name="protein" type="number" min="0" step="any"></label>
+      <label>Carbohydrates (g) <input name="carbs" type="number" min="0" step="any"></label>
+      <label>Fat (g) <input name="fat" type="number" min="0" step="any"></label>
+      <label>Fibre (g) <input name="fiber" type="number" min="0" step="any"></label>
+      <label>Sugars (g) <input name="sugar" type="number" min="0" step="any"></label>
+      <label>Sodium (mg) <input name="sodium" type="number" min="0" step="any"></label>
+      <label>OCR text <textarea name="ocrText" rows="5"></textarea></label>
+      <button type="submit">Save product</button>
+      <button type="button" id="crumbCancelReview">Cancel</button>
+    </form>
+  </div>
+  <div id="crumbGroceryLibrary"></div>
+</section>
+<script>
+(() => {
+  const KEY = 'mj_groceries_v1';
+  const $ = id => document.getElementById(id);
+  const read = () => { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; } };
+  const write = items => localStorage.setItem(KEY, JSON.stringify(items));
+  const form = $('crumbGroceryForm');
+
+  function showReview(data = {}) {
+    form.reset();
+    for (const [key, value] of Object.entries(data)) {
+      if (form.elements[key]) form.elements[key].value = value ?? '';
+    }
+    $('crumbReview').hidden = false;
+    $('crumbReview').scrollIntoView({behavior:'smooth', block:'start'});
+  }
+
+  function numberFrom(text, patterns) {
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match) return Number(match[1].replace(',', '.'));
+    }
+    return '';
+  }
+
+  function parseOCR(result) {
+    const front = result.frontText || '';
+    const label = result.labelText || '';
+    const all = label + '\n' + front;
+    const serving = all.match(/serving size\s*[:\-]?\s*([0-9]+(?:[.,][0-9]+)?)\s*g/i);
+    const packageSize = all.match(/(?:net weight|net wt|package size)\s*[:\-]?\s*([0-9]+(?:[.,][0-9]+)?)\s*g/i);
+    const field = name => numberFrom(all, [
+      new RegExp('(?:' + name + ')\\\\s*[:\\\\-]?\\\\s*([0-9]+(?:[.,][0-9]+)?)', 'i')
+    ]);
+    const firstLine = front.split(/\n/).map(x => x.trim()).find(x => x.length > 2) || '';
+    return {
+      barcode: result.barcode || '',
+      name: firstLine,
+      packageGrams: packageSize ? packageSize[1].replace(',', '.') : '',
+      servingGrams: serving ? serving[1].replace(',', '.') : '',
+      basis: 'serving',
+      calories: field('calories'),
+      protein: field('protein'),
+      carbs: field('total carbohydrates|carbohydrate'),
+      fat: field('total fat|fat'),
+      fiber: field('dietary fibre|dietary fiber|fibre|fiber'),
+      sugar: field('sugars|sugar'),
+      sodium: field('sodium'),
+      ocrText: all.trim()
+    };
+  }
+
+  function render() {
+    const items = read();
+    const host = $('crumbGroceryLibrary');
+    host.innerHTML = '<h4>Saved products (' + items.length + ')</h4>';
+    if (!items.length) {
+      host.insertAdjacentHTML('beforeend', '<p>No grocery products saved yet.</p>');
+      return;
+    }
+    items.forEach((item, index) => {
+      const card = document.createElement('div');
+      card.style.cssText = 'padding:10px 0;border-top:1px solid var(--border,#ccc)';
+      const title = document.createElement('strong');
+      title.textContent = [item.name, item.brand, item.variant].filter(Boolean).join(' · ');
+      const details = document.createElement('p');
+      details.textContent = [item.barcode ? 'Barcode: ' + item.barcode : 'Custom product', item.packageGrams ? item.packageGrams + ' g package' : ''].filter(Boolean).join(' · ');
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.textContent = 'Edit';
+      edit.onclick = () => showReview(item);
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.textContent = 'Delete';
+      remove.onclick = () => {
+        const updated = read();
+        updated.splice(index, 1);
+        write(updated);
+        render();
+      };
+      card.append(title, details, edit, remove);
+      host.append(card);
+    });
+  }
+
+  $('crumbScanBtn').addEventListener('click', () => {
+    $('crumbScanStatus').textContent = 'Opening camera…';
+    if (window.MealJournalAndroid && MealJournalAndroid.scanGrocery) {
+      MealJournalAndroid.scanGrocery();
+    } else {
+      $('crumbScanStatus').textContent = 'Native scanner is not available on this device.';
+    }
+  });
+
+  $('crumbCustomBtn').addEventListener('click', () => showReview({basis:'100g'}));
+  $('crumbCancelReview').addEventListener('click', () => $('crumbReview').hidden = true);
+
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    const item = Object.fromEntries(new FormData(form).entries());
+    for (const key of ['packageGrams','servingGrams','calories','protein','carbs','fat','fiber','sugar','sodium']) {
+      item[key] = item[key] === '' ? '' : Number(item[key]);
+    }
+    if (!item.name.trim()) return;
+    const items = read();
+    const existing = item.barcode ? items.findIndex(x => x.barcode === item.barcode) : -1;
+    if (existing >= 0) items[existing] = {...items[existing], ...item};
+    else items.unshift({...item, id: item.barcode || ('custom-' + Date.now())});
+    write(items);
+    $('crumbReview').hidden = true;
+    $('crumbScanStatus').textContent = 'Product saved on this device.';
+    render();
+  });
+
+  window.onGroceryScanResult = raw => {
+    try {
+      const result = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      const existing = read().find(x => x.barcode && x.barcode === result.barcode);
+      if (existing) {
+        $('crumbScanStatus').textContent = 'Found your saved product: ' + existing.name;
+        showReview(existing);
+      } else {
+        $('crumbScanStatus').textContent = 'Scan complete. Check the extracted details before saving.';
+        showReview(parseOCR(result));
+      }
+    } catch (error) {
+      $('crumbScanStatus').textContent = 'Could not read the scan result. Please try again.';
+    }
+  };
+
+  window.onGroceryScanCancelled = () => {
+    $('crumbScanStatus').textContent = 'Scan cancelled.';
+  };
+
+  render();
+})();
+</script>
+
 </body>
 </html>

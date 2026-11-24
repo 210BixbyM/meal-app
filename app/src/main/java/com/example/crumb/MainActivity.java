@@ -33,6 +33,8 @@ import org.json.JSONArray;
 
 public class MainActivity extends Activity {
 
+    private static final int GROCERY_SCAN_REQUEST = 7301;
+
     private WebView webView;
     private Interpreter foodInterpreter;
     private String[] foodLabels;
@@ -226,8 +228,42 @@ public class MainActivity extends Activity {
             });
         }
         @JavascriptInterface
+        public void scanGrocery() {
+            runOnUiThread(() -> {
+                android.content.Intent intent =
+                    new android.content.Intent(MainActivity.this,
+                        GroceryScannerActivity.class);
+                startActivityForResult(intent, GROCERY_SCAN_REQUEST);
+            });
+        }
+
+        @JavascriptInterface
         public void recognizeFood(String dataUrl) {
             MainActivity.this.recognizeFood(dataUrl);
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode,
+                                    android.content.Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == GROCERY_SCAN_REQUEST) {
+            if (resultCode == RESULT_OK && data != null) {
+                String result = data.getStringExtra("groceryResult");
+                if (result != null && webView != null) {
+                    webView.evaluateJavascript(
+                        "window.onGroceryScanResult && window.onGroceryScanResult("
+                        + JSONObject.quote(result) + ")",
+                        null
+                    );
+                }
+            } else if (webView != null) {
+                webView.evaluateJavascript(
+                    "window.onGroceryScanCancelled && window.onGroceryScanCancelled()",
+                    null
+                );
+            }
         }
     }
 
