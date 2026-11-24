@@ -1,6 +1,3 @@
-let fatSecretToken = null;
-let fatSecretExpiry = 0;
-
 const json = (data, status = 200) =>
   new Response(JSON.stringify(data), {
     status,
@@ -10,37 +7,6 @@ const json = (data, status = 200) =>
       "Cache-Control": "no-store"
     }
   });
-
-async function getFatSecretToken(env) {
-  if (fatSecretToken && Date.now() < fatSecretExpiry) {
-    return fatSecretToken;
-  }
-
-  if (!env.FATSECRET_CLIENT_ID || !env.FATSECRET_CLIENT_SECRET) {
-    throw new Error("FatSecret credentials are not configured.");
-  }
-
-  const credentials = btoa(
-    `${env.FATSECRET_CLIENT_ID}:${env.FATSECRET_CLIENT_SECRET}`
-  );
-
-  const response = await fetch("https://oauth.fatsecret.com/connect/token", {
-    method: "POST",
-    headers: {
-      "Authorization": `Basic ${credentials}`,
-      "Content-Type": "application/x-www-form-urlencoded"
-    },
-    body: "grant_type=client_credentials&scope=basic"
-  });
-
-  if (!response.ok) throw new Error("FatSecret authentication failed.");
-
-  const data = await response.json();
-  fatSecretToken = data.access_token;
-  fatSecretExpiry = Date.now() + (data.expires_in - 120) * 1000;
-
-  return fatSecretToken;
-}
 
 export default {
   async fetch(request, env) {
@@ -65,35 +31,6 @@ export default {
     }
 
     try {
-      if (url.pathname === "/api/fatsecret/search") {
-        const query = url.searchParams.get("q")?.trim();
-
-        if (!query || query.length > 100) {
-          return json({ error: "A search query is required (max 100 characters)." }, 400);
-        }
-
-        const token = await getFatSecretToken(env);
-        const params = new URLSearchParams({
-          method: "foods.search",
-          search_expression: query,
-          format: "json"
-        });
-
-        const response = await fetch(
-          "https://platform.fatsecret.com/rest/server.api",
-          {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${token}`,
-              "Content-Type": "application/x-www-form-urlencoded"
-            },
-            body: params
-          }
-        );
-
-        return json(await response.json(), response.status);
-      }
-
       if (url.pathname === "/api/ninjas/nutrition") {
         const query = url.searchParams.get("q")?.trim();
 
