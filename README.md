@@ -1,18 +1,20 @@
-<<<<<<< HEAD
-# Meal Journal Android project
+# Meal Journal Android
 
-This wraps the existing Meal Journal web app in a lightweight Android WebView shell.
+A local-first Android meal journal using an HTML interface inside an Android WebView.
 
-## Build an APK without installing Android Studio
-1. Create a free GitHub account and a new repository.
-2. Upload all contents of this folder, including the hidden `.github` folder.
-3. Open the repository's Actions tab.
-4. Select **Build Android APK** and choose **Run workflow** (or wait for the first push build).
-5. Open the completed run and download the `meal-journal-debug-apk` artifact.
-6. Extract it and install `app-debug.apk` on your Android phone. Android may ask you to allow installs from your browser or file manager.
+## Features
+- Daily meal journal with Breakfast, Lunch, Dinner, Snacks and custom entries
+- Local entry storage, meal photos, editing and deletion
+- Export and import backups
+- Barcode scanning using ZXing
+- Product name, brand, ingredients and allergen lookup through Open Food Facts
+- No advertisements
 
-## Notes
-- This is a debug APK for personal testing, not a Play Store release.
-- Meal entries are stored locally in the app. Export a backup periodically.
-- Photo selection is supported; automatic AI food recognition is not included.
-- This version intentionally has no calorie, macro, or weight tracking.
+## Build
+Push this project to GitHub and run the **Build Android APK** workflow in Actions. Download the `meal-journal-debug-apk` artifact and install `app-debug.apk`.
+
+## Product lookup
+Barcode lookups use the Open Food Facts public product database. Product coverage and details vary; information may be incomplete or community-submitted. Network access is required.
+
+## Data
+Meal entries are stored locally in the app's WebView storage. Export backups periodically. Clearing app data may erase entries.
