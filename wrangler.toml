@@ -1,4 +1,0 @@
-name = "crumb-api"
-main = "cloudflare-worker/src/index.js"
-compatibility_date = "2026-11-24"
-workers_dev = true
