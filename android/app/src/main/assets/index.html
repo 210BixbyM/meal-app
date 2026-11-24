@@ -303,11 +303,10 @@
 </div>
 
 <nav class="bottom">
-  <button class="active" data-tab="home"><span class="ico">⌂</span>Home</button>
   <button data-tab="diary"><span class="ico">▤</span>Diary</button>
-  <button data-tab="add"><span class="ico">＋</span>Add meal</button>
-  <button data-tab="weight"><span class="ico">⌁</span>Weight</button>
-  <button data-tab="profile"><span class="ico">☰</span>Profile</button>
+  <button data-tab="weight"><span class="ico">⌁</span>Trends</button>
+  <button class="active" data-tab="home"><span class="ico">⌂</span>Home</button>
+  <button data-tab="profile"><span class="ico">⚙</span>Profile</button>
 </nav>
 
 <script>
@@ -1259,12 +1258,14 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
  const make=(tag,cls,html)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(html!==undefined)e.innerHTML=html;return e};
  const home=panel('home'),diary=panel('diary'),meals=panel('add'),trends=panel('weight'),settings=panel('profile');
  if(!home||!diary||!meals||!trends||!settings)return;
+ const homeStyle=make('style');
+ homeStyle.textContent='.bottom button[data-tab="home"]{flex:0 0 66px;max-width:66px;min-height:64px;margin-top:-17px;border-radius:21px;background:var(--accent);color:#fff;box-shadow:0 5px 15px rgba(57,123,216,.3);transform:scale(1.04);font-weight:800}.bottom button[data-tab="home"] .ico{font-size:1.8rem;line-height:1.35}.bottom button[data-tab="home"].active{background:var(--accent-dark);color:#fff}.settings-details{margin-top:12px;padding:12px;border-top:1px solid var(--line)}.settings-details summary{cursor:pointer;font-weight:600}';
+ document.head.appendChild(homeStyle);
 
  // Replace the old five-tab bar, retaining the original panel IDs used by the app.
  const nav=document.querySelector('.bottom');
  if(nav)nav.innerHTML=[
-  ['home','⌂','Home'],['diary','▤','Diary'],['add','＋','Meals'],
-  ['weight','⌁','Trends'],['profile','⚙','Settings']
+  ['diary','▤','Diary'],['weight','⌁','Trends'],['home','⌂','Home'],['profile','⚙','Profile']
  ].map(([id,icon,label])=>`<button type="button" data-tab="${id}" aria-label="${label}"><span class="ico">${icon}</span>${label}</button>`).join('');
 
  // Reorganize the existing calendar, trend, and water widgets without recreating their logic.
@@ -1287,25 +1288,16 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
   </div>
   <div class="section-head"><h2>Quick actions</h2></div>
   <div class="quick-grid">
-   <button class="quick-action" data-go="add"><span>＋</span><span>Add a meal</span></button>
    <button class="quick-action" data-go="diary"><span>▤</span><span>Open diary</span></button>
    <button class="quick-action" data-go="weight"><span>⌁</span><span>View trends</span></button>
-   <button class="quick-action" data-go="profile"><span>⚙</span><span>Settings</span></button>
+   <button class="quick-action" data-go="profile"><span>⚙</span><span>Profile</span></button>
   </div>
-  <div class="section-head"><h2>Recipes</h2><small>Find something to make</small></div>
-  <div class="card">
-   <label for="crumbRecipeSearch">Search recipes</label>
-   <div class="toolbar"><input id="crumbRecipeSearch" placeholder="Try pasta, chicken, vegetables…"><button class="btn" id="crumbRecipeSearchBtn" type="button">Search</button></div>
-   <div id="crumbRecipeResults" style="margin-top:10px"><p class="muted">Search recipes or browse your saved recipes.</p></div>
-  </div>
-  <div class="section-head"><h2>Your saved recipes</h2></div>
-  <div class="card" id="crumbHomeSavedRecipes"><p class="muted">Your saved recipes will appear here.</p></div>
  `;
  home.insertBefore(newHome,home.firstChild);
 
- // Move saved food library and recipe builder into Meals.
+ // Hide Saved Foods without deleting its stored data.
  const foodLibrary=$('mjFoodLibrary')?.closest('.card');
- if(foodLibrary){const h=make('div','section-head','<h2>Saved foods</h2><small>Recent and favourites</small>');meals.appendChild(h);meals.appendChild(foodLibrary)}
+ if(foodLibrary)foodLibrary.classList.add('legacy-hidden');
  const recipeBuilder=$('mjRecipeName')?.closest('.card')||$('mjRecipeList')?.closest('.card');
  if(recipeBuilder){const h=make('div','section-head','<h2>Recipe builder</h2><small>Create and save your own</small>');meals.appendChild(h);meals.appendChild(recipeBuilder)}
  const grocery=$('crumbGroceryTools');
@@ -1340,9 +1332,10 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
  if(trendCard)trendCard.classList.remove('legacy-hidden');
  if(calendarCard)calendarCard.classList.remove('legacy-hidden');
 
- // Remove streak UI and any remaining mood-check-in UI without deleting stored data.
+ // Remove streak UI and move Daily Check-In onto Home.
  $('mjStreakCard')?.classList.add('legacy-hidden');
- document.querySelectorAll('[id*="mood"],[class*="mood"]').forEach(el=>el.classList.add('legacy-hidden'));
+ const checkInCard=$('mjMood')?.closest('.card');
+ if(checkInCard)newHome.appendChild(checkInCard);
 
  // Remove weight estimate and notes; retain the neutral weight history.
  const weightNote=$('weightNote');
@@ -1390,9 +1383,23 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
   flower.addEventListener('click',toggle);flower.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle()}});
  }
 
- // Hide the replaced legacy data section.
+ // Restore Data Management and nest FoodBase settings inside it.
  const oldDataCard=$('exportBtn')?.closest('.card');
- if(oldDataCard)oldDataCard.classList.add('legacy-hidden');
+ const apiCard=$('foodBaseKey')?.closest('.card');
+ if(oldDataCard){
+  oldDataCard.classList.remove('legacy-hidden');
+  const heading=oldDataCard.querySelector('h3');
+  if(heading)heading.textContent='Data Management';
+  if(apiCard){
+   const details=make('details','settings-details');
+   details.innerHTML='<summary>FoodBase API key settings</summary>';
+   [...apiCard.children].forEach(child=>{
+    if(child.tagName!=='H3')details.appendChild(child);
+   });
+   apiCard.remove();
+   oldDataCard.appendChild(details);
+  }
+ }
 
  // Add a water-goal slider directly under the water tracker, using the existing save logic.
  const waterGoal=$('mjWaterGoal');
