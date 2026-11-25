@@ -264,6 +264,8 @@
 <input id="mjRecipeName" placeholder="Name your recipe">
 <label for="mjRecipeIngredients">Ingredients</label>
 <textarea id="mjRecipeIngredients" placeholder="List the ingredients"></textarea>
+<label for="mjRecipeInstructions">Cooking instructions (one step per line)</label>
+<textarea id="mjRecipeInstructions" rows="5" placeholder="1. Prepare the ingredients&#10;2. Cook until ready"></textarea>
 <label for="mjRecipeServings">Number of servings</label>
 <input id="mjRecipeServings" type="number" min="1" value="1">
 <p class="muted">Enter the nutrition for the whole recipe if known. Loading it into a meal divides these values by the servings entered.</p>
@@ -278,6 +280,7 @@
 <label for="mjRecipeList">Saved recipes</label>
 <select id="mjRecipeList"><option value="">Choose a recipe</option></select>
 <button class="btn secondary" type="button" id="mjLoadRecipe">Load into meal</button>
+<button class="btn" type="button" id="mjCookingMode">Open cooking mode</button>
 </div>
 <div class="card">
 <h3>Custom serving units</h3>
@@ -909,7 +912,7 @@ function renderRecipes(){
 $('mjSaveRecipe').onclick=()=>{
  const name=$('mjRecipeName').value.trim(),ingredients=$('mjRecipeIngredients').value.trim();
  if(!name||!ingredients){alert('Enter a recipe name and ingredients.');return}
- const x={id:safeId(),name,ingredients,servings:Math.max(1,Number($('mjRecipeServings').value)||1)};
+ const x={id:safeId(),name,ingredients,instructions:$('mjRecipeInstructions').value.trim(),servings:Math.max(1,Number($('mjRecipeServings').value)||1)};
  for(const [k,id] of Object.entries(nutrientIds))x[k]=Number($('mjRecipe'+k[0].toUpperCase()+k.slice(1)).value)||0;
  const a=read(keys.recipes);a.push(x);write(keys.recipes,a);renderRecipes();alert('Recipe saved.');
 };
@@ -921,6 +924,95 @@ $('mjLoadRecipe').onclick=()=>{
  for(const [k,id] of Object.entries(nutrientIds))$(id).value=fmtNum((x[k]||0)/x.servings);
  switchTab('add');
 };
+$('mjCookingMode').onclick=()=>{
+ const recipe=read(keys.recipes).find(x=>x.id===$('mjRecipeList').value);
+ if(!recipe){alert('Choose a saved recipe first.');return}
+ openCookingMode(recipe);
+};
+
+
+function openCookingMode(recipe){
+ const old=document.getElementById('crumbCookingOverlay');
+ if(old)old.remove();
+ const overlay=document.createElement('div');
+ overlay.id='crumbCookingOverlay';
+ overlay.setAttribute('role','dialog');
+ overlay.setAttribute('aria-modal','true');
+ overlay.setAttribute('aria-labelledby','crumbCookingTitle');
+ overlay.style.cssText='position:fixed;inset:0;z-index:9999;background:var(--bg);color:var(--ink);overflow:auto;padding:20px';
+ const raw=(recipe.instructions||'').trim();
+ const steps=raw?raw.split(/\r?\n/).map(x=>x.trim()).filter(Boolean):[];
+ overlay.innerHTML=`
+  <div style="max-width:700px;margin:auto">
+   <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+    <h2 id="crumbCookingTitle">${esc(recipe.name)}</h2>
+    <button type="button" id="crumbCookingClose" aria-label="Close cooking mode">Close</button>
+   </div>
+   <p class="muted">Cooking mode · ${Math.max(1,Number(recipe.servings)||1)} servings</p>
+   <h3>Ingredients</h3>
+   <p style="white-space:pre-wrap">${esc(recipe.ingredients||'No ingredients listed.')}</p>
+   <h3>Instructions</h3>
+   <label for="crumbCookingTextSize">Instruction text size</label>
+   <input id="crumbCookingTextSize" type="range" min="16" max="30" value="20">
+   <div id="crumbCookingSteps" style="font-size:20px;line-height:1.7"></div>
+   <hr style="border:0;border-top:1px solid var(--line);margin:20px 0">
+   <h3>Cooking timer</h3>
+   <div id="crumbTimerDisplay" style="font-size:2.5rem;font-weight:750;font-variant-numeric:tabular-nums" aria-live="polite">00:00</div>
+   <div class="form-grid">
+    <div><label for="crumbTimerMinutes">Minutes</label><input id="crumbTimerMinutes" type="number" min="1" max="240" value="10"></div>
+    <div><label for="crumbTimerSeconds">Seconds</label><input id="crumbTimerSeconds" type="number" min="0" max="59" value="0"></div>
+   </div>
+   <div class="actions">
+    <button type="button" class="btn" id="crumbTimerStart">Start</button>
+    <button type="button" class="btn secondary" id="crumbTimerPause">Pause</button>
+    <button type="button" class="btn secondary" id="crumbTimerReset">Reset</button>
+   </div>
+  </div>`;
+ document.body.appendChild(overlay);
+ const stepsBox=overlay.querySelector('#crumbCookingSteps');
+ stepsBox.innerHTML=steps.length?'<ol>'+steps.map(x=>'<li style="margin:12px 0">'+esc(x)+'</li>').join('')+'</ol>':'<p class="muted">No instructions have been added to this recipe yet. Close Cooking Mode and add instructions in the recipe builder.</p>';
+ overlay.querySelector('#crumbCookingTextSize').oninput=e=>stepsBox.style.fontSize=e.target.value+'px';
+
+ let remaining=0,interval=null;
+ const display=overlay.querySelector('#crumbTimerDisplay');
+ const readTimer=()=>{
+  const m=Number(overlay.querySelector('#crumbTimerMinutes').value);
+  const sec=Number(overlay.querySelector('#crumbTimerSeconds').value);
+  if(!Number.isInteger(m)||!Number.isInteger(sec)||m<0||m>240||sec<0||sec>59||m*60+sec<1){
+   alert('Enter a timer duration between 1 second and 240 minutes.');return null;
+  }
+  return m*60+sec;
+ };
+ const paint=()=>{
+  display.textContent=String(Math.floor(remaining/60)).padStart(2,'0')+':'+String(remaining%60).padStart(2,'0');
+ };
+ const stop=()=>{if(interval!==null){clearInterval(interval);interval=null}};
+ overlay.querySelector('#crumbTimerStart').onclick=()=>{
+  if(interval!==null)return;
+  if(remaining<=0){const n=readTimer();if(n===null)return;remaining=n;paint()}
+  interval=setInterval(()=>{
+   remaining=Math.max(0,remaining-1);paint();
+   if(remaining===0){stop();display.textContent='00:00';alert('Cooking timer finished!')}
+  },1000);
+ };
+ overlay.querySelector('#crumbTimerPause').onclick=stop;
+ overlay.querySelector('#crumbTimerReset').onclick=()=>{
+  stop();const n=readTimer();if(n!==null){remaining=n;paint()}
+ };
+ overlay.querySelector('#crumbTimerMinutes').onchange=()=>{
+  if(interval===null){const n=readTimer();if(n!==null){remaining=n;paint()}}
+ };
+ overlay.querySelector('#crumbTimerSeconds').onchange=()=>{
+  if(interval===null){const n=readTimer();if(n!==null){remaining=n;paint()}}
+ };
+ const close=()=>{
+  stop();document.removeEventListener('keydown',escapeHandler);overlay.remove();
+ };
+ const escapeHandler=e=>{if(e.key==='Escape')close()};
+ overlay.querySelector('#crumbCookingClose').onclick=close;
+ document.addEventListener('keydown',escapeHandler);
+ overlay.querySelector('#crumbCookingClose').focus();
+}
 
 const factors={g:1,ml:1,oz:28.3495,cup:240,tbsp:15,tsp:5};
 function renderUnits(){
@@ -1582,6 +1674,19 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
    <button class="btn" type="button" id="crumbAddGrocery">Add</button>
   </div>
   <div id="crumbGroceryList" aria-live="polite" style="margin-top:12px"></div>
+  <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
+  <h3>Pantry inventory</h3>
+  <p class="muted">Keep track of what you have at home, including optional expiry dates.</p>
+  <label for="crumbPantryName">Food or ingredient</label>
+  <input id="crumbPantryName" maxlength="120" placeholder="e.g. Pasta">
+  <div class="form-grid">
+   <div><label for="crumbPantryQuantity">Quantity</label><input id="crumbPantryQuantity" type="number" min="0" step="any" placeholder="e.g. 2"></div>
+   <div><label for="crumbPantryUnit">Unit</label><input id="crumbPantryUnit" maxlength="30" placeholder="e.g. packages"></div>
+  </div>
+  <label for="crumbPantryExpiry">Expiry date (optional)</label>
+  <input id="crumbPantryExpiry" type="date">
+  <button class="btn" type="button" id="crumbAddPantry">Add to pantry</button>
+  <div id="crumbPantryList" aria-live="polite" style="margin-top:12px"></div>
  `;
  recipes.insertBefore(groceryCard,recipes.children[1]||null);
 
@@ -1667,7 +1772,48 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
  }
  $('crumbAddGrocery').onclick=addCrumbGrocery;
  $('crumbGroceryItem').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addCrumbGrocery()}});
- renderCrumbPlan();renderCrumbTemplates();renderCrumbGroceries();
+
+ const crumbPantryKey='crumb_pantry_inventory_v1';
+ function renderCrumbPantry(){
+  const a=crumbRead(crumbPantryKey);
+  $('crumbPantryList').innerHTML=a.length?a.map(x=>{
+   const expiry=x.expiry?`<p class="muted">Expires: ${esc(x.expiry)}</p>`:'';
+   const quantity=x.quantity!==''?`${esc(x.quantity)} ${esc(x.unit||'')}`.trim():'Quantity not specified';
+   return `<div class="entry">
+    <strong>${esc(x.name)}</strong>
+    <p class="muted">${quantity}</p>${expiry}
+    <div class="entry-actions">
+     <button type="button" data-pantry-shopping="${esc(x.id)}">Add to grocery list</button>
+     <button type="button" data-pantry-delete="${esc(x.id)}">Remove</button>
+    </div>
+   </div>`;
+  }).join(''):'<p class="muted">Your pantry is empty. Add ingredients you have on hand.</p>';
+  $('crumbPantryList').querySelectorAll('[data-pantry-shopping]').forEach(b=>b.onclick=()=>{
+   const item=crumbRead(crumbPantryKey).find(x=>x.id===b.dataset.pantryShopping);
+   if(!item)return;
+   const list=crumbRead(crumbGroceryKey);
+   list.push({id:crumbId(),name:item.name+(item.quantity!==''?' · '+item.quantity+' '+(item.unit||'') :''),done:false});
+   crumbWrite(crumbGroceryKey,list);renderCrumbGroceries();
+  });
+  $('crumbPantryList').querySelectorAll('[data-pantry-delete]').forEach(b=>b.onclick=()=>{
+   crumbWrite(crumbPantryKey,crumbRead(crumbPantryKey).filter(x=>x.id!==b.dataset.pantryDelete));
+   renderCrumbPantry();
+  });
+ }
+ $('crumbAddPantry').onclick=()=>{
+  const name=$('crumbPantryName').value.trim();
+  const quantity=$('crumbPantryQuantity').value.trim();
+  const unit=$('crumbPantryUnit').value.trim();
+  const expiry=$('crumbPantryExpiry').value;
+  if(!name){alert('Enter a food or ingredient first.');return}
+  const a=crumbRead(crumbPantryKey);
+  a.push({id:crumbId(),name,quantity,unit,expiry});
+  crumbWrite(crumbPantryKey,a);
+  $('crumbPantryName').value='';$('crumbPantryQuantity').value='';
+  $('crumbPantryUnit').value='';$('crumbPantryExpiry').value='';
+  renderCrumbPantry();
+ };
+ renderCrumbPlan();renderCrumbTemplates();renderCrumbGroceries();renderCrumbPantry();
 
  // Expandable Accessibility settings.
  const accessibility=make('details','settings-details');
