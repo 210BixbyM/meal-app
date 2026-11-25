@@ -260,6 +260,14 @@
 </div>
 <div class="card">
 <h3>Recipe builder</h3>
+<label for="mjRecipeUrl">Import recipe from a webpage</label>
+<input id="mjRecipeUrl" type="url" placeholder="https://example.com/recipe">
+<button class="btn secondary" type="button" id="mjImportRecipeUrl" style="margin-top:8px;width:100%">Import recipe</button>
+<p id="mjRecipeImportStatus" class="muted" role="status"></p>
+<label for="mjRecipeUrl">Import recipe from a webpage</label>
+<input id="mjRecipeUrl" type="url" placeholder="https://example.com/recipe">
+<button class="btn secondary" type="button" id="mjImportRecipeUrl" style="margin-top:8px;width:100%">Import recipe</button>
+<p id="mjRecipeImportStatus" class="muted" role="status"></p>
 <label for="mjRecipeName">Recipe name</label>
 <input id="mjRecipeName" placeholder="Name your recipe">
 <label for="mjRecipeIngredients">Ingredients</label>
@@ -909,6 +917,50 @@ function renderRecipes(){
  a.forEach(x=>{const o=document.createElement('option');o.value=x.id;o.textContent=x.name;sel.appendChild(o)});
  if(old)sel.value=old;
 }
+window.onRecipeImport=(raw,error)=>{
+ const status=$('mjRecipeImportStatus');
+ if(error){status.textContent=error;return}
+ try{
+  const recipe=typeof raw==='string'?JSON.parse(raw):raw;
+  $('mjRecipeName').value=recipe.name||'';
+  $('mjRecipeIngredients').value=recipe.ingredients||'';
+  $('mjRecipeInstructions').value=recipe.instructions||'';
+  $('mjRecipeServings').value=Math.max(1,Number(recipe.servings)||1);
+  status.textContent='Recipe imported. Review the details, then save it when ready.';
+ }catch(e){status.textContent='Could not read the imported recipe.'}
+};
+$('mjImportRecipeUrl').onclick=()=>{
+ const url=$('mjRecipeUrl').value.trim();
+ if(!url){$('mjRecipeImportStatus').textContent='Enter a recipe webpage URL.';return}
+ $('mjRecipeImportStatus').textContent='Importing recipe…';
+ if(!window.MealJournalAndroid||!MealJournalAndroid.importRecipeUrl){
+  $('mjRecipeImportStatus').textContent='Recipe importing is available in the Android app.';
+  return;
+ }
+ MealJournalAndroid.importRecipeUrl(url);
+};
+window.onRecipeImport=(raw,error)=>{
+ const status=$('mjRecipeImportStatus');
+ if(error){status.textContent=error;return}
+ try{
+  const recipe=typeof raw==='string'?JSON.parse(raw):raw;
+  $('mjRecipeName').value=recipe.name||'';
+  $('mjRecipeIngredients').value=recipe.ingredients||'';
+  $('mjRecipeInstructions').value=recipe.instructions||'';
+  $('mjRecipeServings').value=Math.max(1,Number(recipe.servings)||1);
+  status.textContent='Recipe imported. Review the details, then save it when ready.';
+ }catch(e){status.textContent='Could not read the imported recipe.'}
+};
+$('mjImportRecipeUrl').onclick=()=>{
+ const url=$('mjRecipeUrl').value.trim();
+ if(!url){$('mjRecipeImportStatus').textContent='Enter a recipe webpage URL.';return}
+ $('mjRecipeImportStatus').textContent='Importing recipe…';
+ if(!window.MealJournalAndroid||!MealJournalAndroid.importRecipeUrl){
+  $('mjRecipeImportStatus').textContent='Recipe importing is available in the Android app.';
+  return;
+ }
+ MealJournalAndroid.importRecipeUrl(url);
+};
 $('mjSaveRecipe').onclick=()=>{
  const name=$('mjRecipeName').value.trim(),ingredients=$('mjRecipeIngredients').value.trim();
  if(!name||!ingredients){alert('Enter a recipe name and ingredients.');return}
@@ -1691,12 +1743,28 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
  recipes.insertBefore(groceryCard,recipes.children[1]||null);
 
  const crumbRead=(key)=>{try{const v=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(v)?v:[]}catch{return []}};
- const crumbWrite=(key,value)=>localStorage.setItem(key,JSON.stringify(value));
+ const crumbWrite=(key,value)=>{
+  localStorage.setItem(key,JSON.stringify(value));
+  if(key===crumbPlanKey||key===crumbGroceryKey)syncCrumbWidget();
+ };
  const crumbPlanKey='crumb_meal_plan_v1';
  const crumbTemplateKey='crumb_meal_templates_v1';
  const crumbGroceryKey='crumb_grocery_list_v1';
  const crumbToday=()=>new Date().toLocaleDateString('en-CA');
  const crumbId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+
+ function syncCrumbWidget(){
+  if(!window.MealJournalAndroid?.updateCrumbWidget)return;
+  const today=crumbToday();
+  const plan=crumbRead(crumbPlanKey).filter(x=>x.date===today)
+   .map(x=>`${x.type}: ${x.name}`).slice(0,4);
+  const groceries=crumbRead(crumbGroceryKey).filter(x=>!x.done)
+   .map(x=>x.name).slice(0,5);
+  MealJournalAndroid.updateCrumbWidget(
+   plan.join('\\n')||'Nothing planned today',
+   groceries.join('\\n')||'Shopping list is clear'
+  );
+ }
 
  function renderCrumbPlan(){
   const date=$('crumbPlanDate').value||crumbToday();
@@ -1814,6 +1882,7 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
   renderCrumbPantry();
  };
  renderCrumbPlan();renderCrumbTemplates();renderCrumbGroceries();renderCrumbPantry();
+ syncCrumbWidget();
 
  // Expandable Accessibility settings.
  const accessibility=make('details','settings-details');

@@ -34,6 +34,12 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.InetAddress;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.net.InetAddress;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -371,6 +377,30 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void importRecipeUrl(String address) {
+            MainActivity.this.importRecipeUrl(address);
+        }
+        @JavascriptInterface
+        public void updateCrumbWidget(String planText, String groceryText) {
+            getSharedPreferences("crumb_widget", MODE_PRIVATE).edit()
+                .putString("plan", planText == null ? "" : planText)
+                .putString("groceries", groceryText == null ? "" : groceryText)
+                .apply();
+
+            android.appwidget.AppWidgetManager manager =
+                android.appwidget.AppWidgetManager.getInstance(MainActivity.this);
+            android.content.ComponentName provider =
+                new android.content.ComponentName(MainActivity.this,
+                    CrumbWidgetProvider.class);
+            int[] ids = manager.getAppWidgetIds(provider);
+            android.content.Intent update =
+                new android.content.Intent(MainActivity.this, CrumbWidgetProvider.class);
+            update.setAction(android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE);
+            update.putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, ids);
+            sendBroadcast(update);
+        }
+
+        @JavascriptInterface
         public void saveBackup(String json) {
             runOnUiThread(() -> {
                 pendingBackupJson = json;
@@ -621,6 +651,234 @@ public class MainActivity extends Activity {
         }
         return true;
     }
+
+    private void importRecipeUrl(String address) {
+        executor.execute(() -> {
+            String result = null;
+            String error = null;
+
+            try {
+                JSONObject recipe = fetchRecipeFromPage(address);
+                result = recipe.toString();
+            } catch (Exception ex) {
+                error = ex.getMessage() == null
+                    ? "Could not import this recipe." : ex.getMessage();
+            }
+
+            final String payload = result;
+            final String failure = error;
+
+            runOnUiThread(() -> {
+                if (webView == null) return;
+
+                String callback = "window.onRecipeImport && window.onRecipeImport("
+                    + (payload == null ? "null" : JSONObject.quote(payload))
+                    + ","
+                    + (failure == null ? "null" : JSONObject.quote(failure))
+                    + ")";
+                webView.evaluateJavascript(callback, null);
+            });
+        });
+    }
+
+    private JSONObject fetchRecipeFromPage(String address) throws Exception {
+        URL url = new URL(address);
+        if (!"https".equalsIgnoreCase(url.getProtocol())
+                || url.getUserInfo() != null
+                || url.getHost() == null
+                || url.getHost().isEmpty()) {
+            throw new Exception("Please enter a valid HTTPS recipe URL.");
+        }
+
+        InetAddress[] addresses = InetAddress.getAllByName(url.getHost());
+        for (InetAddress ip : addresses) {
+            if (ip.isAnyLocalAddress() || ip.isLoopbackAddress()
+                    || ip.isLinkLocalAddress() || ip.isSiteLocalAddress()
+                    || ip.isMulticastAddress()) {
+                throw new Exception("That webpage address is not allowed.");
+            }
+        }
+
+        HttpURLConnection connection =
+            (HttpURLConnection) url.openConnection();
+        connection.setInstanceFollowRedirects(false);
+        connection.setConnectTimeout(12000);
+        connection.setReadTimeout(15000);
+        connection.setRequestProperty(
+            "User-Agent", "Mozilla/5.0 (compatible; CrumbRecipeImporter/1.0)"
+        );
+        connection.setRequestProperty("Accept", "text/html");
+
+        String page;
+        try {
+            int status = connection.getResponseCode();
+            if (status >= 300 && status < 400)
+                throw new Exception("This webpage redirects. Try its final HTTPS URL.");
+            if (status < 200 || status >= 300)
+                throw new Exception("The webpage returned HTTP " + status + ".");
+
+            InputStream input = connection.getInputStream();
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            byte[] buffer = new byte[8192];
+            int count;
+            while ((count = input.read(buffer)) != -1) {
+                if (output.size() + count > 2 * 1024 * 1024)
+                    throw new Exception("The webpage is too large to import.");
+                output.write(buffer, 0, count);
+            }
+            input.close();
+            page = output.toString("UTF-8");
+        } finally {
+            connection.disconnect();
+        }
+
+        Pattern scriptPattern = Pattern.compile(
+            "(?is)<script\\\\b[^>]*type\\\\s*=\\\\s*['\\\"]application/ld\\\\+json['\\\"][^>]*>(.*?)</script\\\\s*>"
+        );
+        Matcher matcher = scriptPattern.matcher(page);
+
+        while (matcher.find()) {
+            String jsonText = matcher.group(1).trim();
+            try {
+                Object data = new org.json.JSONTokener(jsonText).nextValue();
+                JSONObject recipe = findRecipeObject(data, 0);
+                if (recipe != null) return recipeToImport(recipe);
+            } catch (Exception ignored) {
+                // Continue to other JSON-LD blocks.
+            }
+        }
+
+        throw new Exception("No structured recipe was found on that webpage.");
+    }
+
+    private JSONObject findRecipeObject(Object node, int depth) {
+        if (node == null || depth > 20) return null;
+
+        if (node instanceof JSONArray) {
+            JSONArray array = (JSONArray) node;
+            for (int i = 0; i < array.length(); i++) {
+                JSONObject found = findRecipeObject(array.opt(i), depth + 1);
+                if (found != null) return found;
+            }
+            return null;
+        }
+
+        if (!(node instanceof JSONObject)) return null;
+
+        JSONObject object = (JSONObject) node;
+        Object type = object.opt("@type");
+        boolean isRecipe = false;
+
+        if (type instanceof String) {
+            isRecipe = "Recipe".equalsIgnoreCase((String) type);
+        } else if (type instanceof JSONArray) {
+            JSONArray types = (JSONArray) type;
+            for (int i = 0; i < types.length(); i++) {
+                if ("Recipe".equalsIgnoreCase(types.optString(i))) {
+                    isRecipe = true;
+                    break;
+                }
+            }
+        }
+
+        if (isRecipe) return object;
+
+        java.util.Iterator<String> keys = object.keys();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            JSONObject found = findRecipeObject(object.opt(key), depth + 1);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private JSONObject recipeToImport(JSONObject source) throws Exception {
+        JSONObject result = new JSONObject();
+        String name = source.optString("name", "").trim();
+        if (name.isEmpty()) throw new Exception("The recipe has no name.");
+
+        result.put("name", name);
+        result.put("ingredients", recipeIngredients(source.opt("recipeIngredient")));
+        result.put("instructions", recipeInstructions(source.opt("recipeInstructions")));
+        result.put("servings", recipeServings(source.opt("recipeYield")));
+        return result;
+    }
+
+    private String recipeIngredients(Object value) {
+        if (value instanceof JSONArray) {
+            JSONArray array = (JSONArray) value;
+            StringBuilder text = new StringBuilder();
+            for (int i = 0; i < array.length(); i++) {
+                String item = array.optString(i, "").trim();
+                if (!item.isEmpty()) {
+                    if (text.length() > 0) text.append("\n");
+                    text.append(item);
+                }
+            }
+            return text.toString();
+        }
+        return value == null || value == JSONObject.NULL ? "" : value.toString();
+    }
+
+    private String recipeInstructions(Object value) {
+        StringBuilder text = new StringBuilder();
+        appendRecipeInstructions(value, text, 0);
+        return text.toString().trim();
+    }
+
+    private void appendRecipeInstructions(Object value,
+            StringBuilder text, int depth) {
+        if (value == null || value == JSONObject.NULL || depth > 12) return;
+
+        if (value instanceof JSONArray) {
+            JSONArray array = (JSONArray) value;
+            for (int i = 0; i < array.length(); i++)
+                appendRecipeInstructions(array.opt(i), text, depth + 1);
+            return;
+        }
+
+        if (value instanceof JSONObject) {
+            JSONObject object = (JSONObject) value;
+            String instruction = object.optString("text", "").trim();
+            if (!instruction.isEmpty()) {
+                if (text.length() > 0) text.append("\n");
+                text.append(instruction);
+            } else {
+                appendRecipeInstructions(object.opt("itemListElement"),
+                    text, depth + 1);
+            }
+            return;
+        }
+
+        String instruction = value.toString().trim();
+        if (!instruction.isEmpty()) {
+            if (text.length() > 0) text.append("\n");
+            text.append(instruction);
+        }
+    }
+
+    private int recipeServings(Object value) {
+        if (value instanceof JSONArray) {
+            JSONArray array = (JSONArray) value;
+            if (array.length() > 0) value = array.opt(0);
+        }
+        if (value instanceof JSONObject) {
+            JSONObject object = (JSONObject) value;
+            value = object.opt("value");
+        }
+        if (value == null || value == JSONObject.NULL) return 1;
+
+        Matcher matcher = Pattern.compile("\\\\d+").matcher(value.toString());
+        if (matcher.find()) {
+            try {
+                return Math.max(1, Math.min(100,
+                    Integer.parseInt(matcher.group())));
+            } catch (NumberFormatException ignored) {}
+        }
+        return 1;
+    }
+
+    
 
     private String httpGet(String address) throws Exception {
 

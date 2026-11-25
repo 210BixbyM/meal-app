@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/crumbWidgetRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="14dp"
+    android:background="#F4F8F3">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Crumb ✿"
+        android:textStyle="bold"
+        android:textSize="17sp"
+        android:textColor="#286B49"
+        android:paddingBottom="6dp" />
+
+    <TextView
+        android:id="@+id/crumbWidgetPlan"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Today's meals"
+        android:textColor="#26382E"
+        android:textSize="13sp"
+        android:maxLines="5"
+        android:paddingBottom="8dp" />
+
+    <TextView
+        android:id="@+id/crumbWidgetGroceries"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="To buy"
+        android:textColor="#26382E"
+        android:textSize="13sp"
+        android:maxLines="5" />
+</LinearLayout>
