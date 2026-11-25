@@ -1,6 +1,13 @@
 package com.example.crumb;
 
 import android.app.Activity;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import java.util.Calendar;
 import android.content.Intent;
 import android.os.Bundle;
 import android.webkit.JavascriptInterface;
@@ -97,6 +104,8 @@ public class MainActivity extends Activity {
         );
 
         webView.loadUrl("file:///android_asset/index.html");
+
+        initializeNotifications();
     }
 
     private class AndroidBridge {
@@ -142,6 +151,7 @@ public class MainActivity extends Activity {
                                     food.optString("name_default", "Food product")));
                                 item.put("brand", product.optString("brand",
                                     food.optString("brand", "")));
+                                item.put("servingLabel", product.optString("serving_size_raw", ""));
                                 item.put("serving", "per 100 g");
                                 item.put("basis", "per 100 g");
                                 item.put("calories", macros.has("energy_kcal") && !macros.isNull("energy_kcal") ? macros.get("energy_kcal") : JSONObject.NULL);
@@ -178,6 +188,7 @@ public class MainActivity extends Activity {
                                 item.put("source", "USDA FoodData Central");
                                 item.put("name", food.optString("description", "Food product"));
                                 item.put("brand", food.optString("brandOwner", ""));
+                                item.put("fdcId", food.optString("fdcId", ""));
                                 item.put("serving", "per 100 g");
                                 item.put("basis", "per 100 g");
                                 item.put("calories", usdaNutrient(food, 1008));
@@ -205,6 +216,72 @@ public class MainActivity extends Activity {
 
                 runOnUiThread(() -> webView.evaluateJavascript(
                     "window.onFoodSearch && window.onFoodSearch("
+                    + JSONObject.quote(payload) + ","
+                    + JSONObject.quote(message) + ")", null));
+            });
+        }
+
+        @JavascriptInterface
+        public void getFoodPortions(String fdcId, String apiKey) {
+            executor.execute(() -> {
+                JSONArray portions = new JSONArray();
+                String error = "";
+                try {
+                    if (fdcId == null || !fdcId.matches("\\d+"))
+                        throw new Exception("Invalid USDA food ID.");
+
+                    String key = apiKey == null || apiKey.trim().isEmpty()
+                        ? "DEMO_KEY" : apiKey.trim();
+                    String address = "https://api.nal.usda.gov/fdc/v1/food/"
+                        + Uri.encode(fdcId) + "?api_key=" + Uri.encode(key);
+                    JSONObject food = new JSONObject(httpGet(address));
+                    JSONArray source = food.optJSONArray("foodPortions");
+
+                    if (source != null) {
+                        for (int i = 0; i < source.length(); i++) {
+                            JSONObject portion = source.optJSONObject(i);
+                            if (portion == null) continue;
+                            double grams = portion.optDouble("gramWeight", 0);
+                            if (!Double.isFinite(grams) || grams <= 0) continue;
+
+                            String description = portion.optString("portionDescription", "").trim();
+                            String modifier = portion.optString("modifier", "").trim();
+                            JSONObject measure = portion.optJSONObject("measureUnit");
+                            String unit = measure == null ? "" : measure.optString("name", "").trim();
+                            double amount = portion.optDouble("amount", 0);
+
+                            String label = description;
+                            if (label.isEmpty()) {
+                                label = (amount > 0 ? amount + " " : "")
+                                    + (modifier.isEmpty() ? "" : modifier + " ")
+                                    + unit;
+                            }
+                            if (label.isEmpty()) label = "Serving";
+                            JSONObject item = new JSONObject();
+                            item.put("label", label);
+                            item.put("grams", grams);
+                            portions.put(item);
+                        }
+                    }
+
+                    double servingSize = food.optDouble("servingSize", 0);
+                    String servingUnit = food.optString("servingSizeUnit", "");
+                    if (servingSize > 0 && "g".equalsIgnoreCase(servingUnit)) {
+                        JSONObject item = new JSONObject();
+                        item.put("label", "1 package serving");
+                        item.put("grams", servingSize);
+                        portions.put(item);
+                    }
+                } catch (Exception e) {
+                    error = e.getMessage() == null
+                        ? "Could not load serving sizes." : e.getMessage();
+                }
+
+                final String payload = portions.toString();
+                final String message = error;
+                runOnUiThread(() -> webView.evaluateJavascript(
+                    "window.onFoodPortions && window.onFoodPortions("
+                    + JSONObject.quote(fdcId) + ","
                     + JSONObject.quote(payload) + ","
                     + JSONObject.quote(message) + ")", null));
             });
@@ -589,6 +666,93 @@ public class MainActivity extends Activity {
 
         } finally {
             connection.disconnect();
+        }
+    }
+
+
+    private static final int NOTIFICATION_PERMISSION_REQUEST = 9201;
+    private static final String AFFIRMATION_CHANNEL = "daily_affirmations";
+
+    private void initializeNotifications() {
+        ReminderScheduler.scheduleAll(this);
+
+        NotificationManager manager =
+            (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && manager != null) {
+            NotificationChannel channel = new NotificationChannel(
+                AFFIRMATION_CHANNEL,
+                "Daily affirmations",
+                NotificationManager.IMPORTANCE_DEFAULT
+            );
+            channel.setDescription("A gentle daily thought from Crumb");
+            manager.createNotificationChannel(channel);
+        }
+
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(
+                new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                NOTIFICATION_PERMISSION_REQUEST
+            );
+            return;
+        }
+
+        showDailyAffirmationNotification();
+    }
+
+    private void showDailyAffirmationNotification() {
+        String[] affirmations = {
+            "You deserve kindness, including from yourself.",
+            "You do not have to earn your right to feel good.",
+            "Progress does not have to be perfect.",
+            "You are more than numbers on a screen.",
+            "You deserve patience on difficult days.",
+            "Taking care of yourself is worthwhile.",
+            "You are allowed to take things one step at a time.",
+            "Your worth does not depend on what you eat or achieve."
+        };
+
+        Calendar today = Calendar.getInstance();
+        today.set(Calendar.HOUR_OF_DAY, 0);
+        today.set(Calendar.MINUTE, 0);
+        today.set(Calendar.SECOND, 0);
+        today.set(Calendar.MILLISECOND, 0);
+
+        long dayNumber = today.getTimeInMillis() / 86400000L;
+        int index = (int) ((dayNumber % affirmations.length
+            + affirmations.length) % affirmations.length);
+
+        Notification.Builder builder =
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                ? new Notification.Builder(this, AFFIRMATION_CHANNEL)
+                : new Notification.Builder(this);
+
+        builder.setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("A thought for today ✿")
+            .setContentText(affirmations[index])
+            .setStyle(new Notification.BigTextStyle()
+                .bigText(affirmations[index]))
+            .setAutoCancel(true);
+
+        NotificationManager manager =
+            (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+
+        if (manager != null) {
+            manager.notify(9200, builder.build());
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(
+            int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == NOTIFICATION_PERMISSION_REQUEST &&
+            grantResults.length > 0 &&
+            grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            showDailyAffirmationNotification();
         }
     }
 

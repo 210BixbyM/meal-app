@@ -65,16 +65,7 @@
 <div id="mjCalendar" style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:12px"></div>
 </div>
 <div class="card">
-<h3>Nutrition and logging trends</h3>
-<label for="mjTrendMetric">View</label>
-<select id="mjTrendMetric">
-<option value="meals">Meals recorded</option>
-<option value="protein">Protein</option>
-<option value="carbs">Carbohydrates</option>
-<option value="fat">Fat</option>
-<option value="fiber">Fibre</option>
-<option value="calories">Calories</option>
-</select>
+<h3>Daily macro breakdown</h3>
 <div id="mjTrends" style="margin-top:12px"></div>
 </div>
 <div class="section-head"><h2>Food diary</h2><small id="selectedDate"></small></div>
@@ -139,6 +130,11 @@
 <p id="mjConversionResult" class="muted"></p>
 </div>
 <label for="servingGrams">Serving size (grams)</label><input id="servingGrams" type="number" min="0" step="1" value="100" placeholder="100">
+<div id="foodPortionWrap" style="display:none;margin-top:9px">
+<label for="foodPortionSelect">Database serving sizes</label>
+<select id="foodPortionSelect"><option value="">Choose a serving size</option></select>
+<p id="foodPortionInfo" class="muted"></p>
+</div>
       <div class="form-grid">
         <div><label for="mealCalories">Calories (kcal)</label><input id="mealCalories" type="number" min="0" step="0.1" placeholder="Optional"></div>
         <div><label for="mealProtein">Protein (g)</label><input id="mealProtein" type="number" min="0" step="0.1" placeholder="Optional"></div>
@@ -327,7 +323,7 @@ function fmt(s){const d=new Date(s);return isNaN(d)?s:d.toLocaleTimeString([],{h
 function fmtNum(n){return (Math.round((Number(n)||0)*10)/10).toString()}
 function switchTab(id){document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===id));document.querySelectorAll('.bottom button').forEach(b=>b.classList.toggle('active',b.dataset.tab===id));if(id==='weight')renderWeights();if(id==='home')renderHome()}
 document.querySelectorAll('.bottom button').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
-function reset(){ $('mealForm').reset();$('editId').value='';$('formTitle').textContent='Add a meal';$('saveBtn').textContent='Save meal';$('mealDate').value=localDateTime();currentPhoto='';window._selectedFoodNutrition=null;$('preview').style.display='none';$('preview').src='';$('identifyFood').disabled=true;$('foodRecognitionResults').innerHTML='';$('foodSearchResults').className='product';$('foodSearchResults').innerHTML='';['mealCalories','mealProtein','mealCarbs','mealFat','mealFiber','mealSugar','mealSatFat','mealSodium'].forEach(id=>$(id).value='');$('servingGrams').value='100'}
+function reset(){ $('mealForm').reset();$('editId').value='';$('formTitle').textContent='Add a meal';$('saveBtn').textContent='Save meal';$('mealDate').value=localDateTime();currentPhoto='';window._selectedFoodNutrition=null;window._manualNutritionFields?.clear();$('preview').style.display='none';$('preview').src='';$('identifyFood').disabled=true;$('foodRecognitionResults').innerHTML='';$('foodSearchResults').className='product';$('foodSearchResults').innerHTML='';['mealCalories','mealProtein','mealCarbs','mealFat','mealFiber','mealSugar','mealSatFat','mealSodium'].forEach(id=>$(id).value='');$('servingGrams').value='100';$('foodPortionWrap').style.display='none';$('foodPortionSelect').innerHTML='<option value="">Choose a serving size</option>';window._foodPortionRequestId=null}
 $('resetForm').onclick=reset;
 $('photo').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;if(f.size>8*1024*1024){alert('Please choose an image under 8 MB.');e.target.value='';return}const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const c=document.createElement('canvas'),scale=Math.min(1,1200/Math.max(img.width,img.height));c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);c.getContext('2d').drawImage(img,0,0,c.width,c.height);currentPhoto=c.toDataURL('image/jpeg',.78);$('preview').src=currentPhoto;$('preview').style.display='block';$('identifyFood').disabled=false;$('foodRecognitionResults').innerHTML=''};img.src=r.result};r.readAsDataURL(f)});
 
@@ -377,7 +373,7 @@ $('foodRecognitionResults').addEventListener('click',e=>{
   field.value=existing+', '+item.name;
 });
 
-$('mealForm').onsubmit=e=>{e.preventDefault();const id=$('editId').value||makeId(),old=entries.find(x=>x.id===id),item={id,type:$('mealType').value,date:$('mealDate').value,foods:$('foods').value.trim(),notes:$('notes').value.trim(),photo:currentPhoto||old?.photo||'',calories:num('mealCalories',old?.calories),protein:num('mealProtein',old?.protein),carbs:num('mealCarbs',old?.carbs),fat:num('mealFat',old?.fat),fiber:num('mealFiber',old?.fiber),sugar:num('mealSugar',old?.sugar),satFat:num('mealSatFat',old?.satFat),sodium:num('mealSodium',old?.sodium),servingGrams:num('servingGrams',old?.servingGrams||100),nutritionPer100g:window._selectedFoodNutrition||old?.nutritionPer100g||null};if(old)entries=entries.map(x=>x.id===id?item:x);else entries.push(item);persist();selectedDay=new Date(item.date);reset();render();switchTab('diary')};
+$('mealForm').onsubmit=e=>{e.preventDefault();const id=$('editId').value||makeId(),old=entries.find(x=>x.id===id),item={id,type:$('mealType').value,date:$('mealDate').value,foods:$('foods').value.trim(),notes:$('notes').value.trim(),photo:currentPhoto||old?.photo||'',calories:num('mealCalories',old?.calories),protein:num('mealProtein',old?.protein),carbs:num('mealCarbs',old?.carbs),fat:num('mealFat',old?.fat),fiber:num('mealFiber',old?.fiber),sugar:num('mealSugar',old?.sugar),satFat:num('mealSatFat',old?.satFat),sodium:num('mealSodium',old?.sodium),servingGrams:num('servingGrams',old?.servingGrams||100),nutritionPer100g:window._selectedFoodNutrition||old?.nutritionPer100g||null,manualNutritionFields:[...(window._manualNutritionFields||[])]};if(old)entries=entries.map(x=>x.id===id?item:x);else entries.push(item);persist();selectedDay=new Date(item.date);reset();render();switchTab('diary')};
 function makeId(){return (crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2)}
 function totals(list){return list.reduce((a,x)=>({calories:a.calories+(Number(x.calories)||0),protein:a.protein+(Number(x.protein)||0),carbs:a.carbs+(Number(x.carbs)||0),fat:a.fat+(Number(x.fat)||0),fiber:a.fiber+(Number(x.fiber)||0)}),{calories:0,protein:0,carbs:0,fat:0,fiber:0})}
 function render(){const key=dayKey(selectedDay),today=localDate(),daily=entries.filter(x=>(x.date||'').slice(0,10)===key),t=totals(daily);$('headerDate').textContent=key===today?'Today':selectedDay.toLocaleDateString([],{month:'short',day:'numeric'});$('dateLabel').textContent=key===today?'Today':selectedDay.toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'});$('selectedDate').textContent=selectedDay.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});$('dayCalories').textContent=fmtNum(t.calories);$('dayProtein').textContent=fmtNum(t.protein)+' g';$('dayCarbs').textContent=fmtNum(t.carbs)+' g';$('dayFat').textContent=fmtNum(t.fat)+' g';$('dayFiber').textContent=fmtNum(t.fiber)+' g';$('mealSections').innerHTML=types.map(type=>{const group=daily.filter(x=>x.type===type).sort((a,b)=>a.date.localeCompare(b.date));return `<div class="meal-row"><div class="meal-icon">${icons[type]}</div><div><h3>${type}</h3><p>${group.length?`${group.length} ${group.length===1?'entry':'entries'}`:'No entries yet'}</p></div><button class="add-round" onclick="addFor('${type}')" aria-label="Add ${type}">+</button></div><div class="meal-items">${group.map(x=>`<article class="entry"><strong>${esc(fmt(x.date))}</strong><p>${esc(x.foods)}</p><p class="muted">${fmtNum(x.calories)} kcal · P ${fmtNum(x.protein)} g · C ${fmtNum(x.carbs)} g · F ${fmtNum(x.fat)} g · Fibre ${fmtNum(x.fiber||0)} g</p>${x.notes?`<p class="muted">${esc(x.notes)}</p>`:''}${x.photo?`<img src="${x.photo}" alt="Meal photo">`:''}<div class="entry-actions"><button onclick="editEntry('${x.id}')">Edit</button><button onclick="deleteEntry('${x.id}')">Delete</button></div></article>`).join('')}</div>`}).join('')}
@@ -398,7 +394,7 @@ const dayNumber=Math.floor(new Date().setHours(0,0,0,0)/86400000);
 $('dailyAffirmation').textContent=affirmations[((dayNumber%affirmations.length)+affirmations.length)%affirmations.length];
 const today=localDate(),daily=entries.filter(x=>(x.date||'').slice(0,10)===today),t=totals(daily),latest=[...weights].sort((a,b)=>b.date.localeCompare(a.date))[0];$('homeDate').textContent=new Date().toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'});$('headerDate').textContent='Today';$('homeCalories').textContent=fmtNum(t.calories);$('homeMeals').textContent=daily.length;$('homeProtein').textContent=fmtNum(t.protein)+' g';$('homeMacroProtein').textContent=fmtNum(t.protein)+' g';$('homeMacroCarbs').textContent=fmtNum(t.carbs)+' g';$('homeMacroFat').textContent=fmtNum(t.fat)+' g';$('homeMacroFiber').textContent=fmtNum(t.fiber)+' g';$('homeWeight').textContent=latest?`${fmtNum(latest.value)} ${latest.unit}`:'—';$('homeWeightNote').textContent=weights.length?`${weights.length} ${weights.length===1?'entry':'entries'} in your weight journal.`:'No weight entries yet. You can add one whenever you choose.';const preview=$('homeMealPreview');preview.innerHTML=daily.length?daily.slice().sort((a,b)=>a.date.localeCompare(b.date)).slice(0,3).map(x=>`<div class="entry"><strong>${esc(x.type)} · ${esc(fmt(x.date))}</strong><p>${esc(x.foods)}</p></div>`).join(''):'<div class="empty">Your meal entries will appear here.</div>'}
 window.addFor=type=>{$('mealType').value=type;$('mealDate').value=dayKey(selectedDay)+'T12:00';$('editId').value='';$('formTitle').textContent='Add a meal';$('saveBtn').textContent='Save meal';switchTab('add')};
-window.editEntry=id=>{const x=entries.find(e=>e.id===id);if(!x)return;$('editId').value=x.id;$('mealType').value=x.type;$('mealDate').value=x.date;$('foods').value=x.foods;$('notes').value=x.notes||'';$('mealCalories').value=x.calories??'';$('mealProtein').value=x.protein??'';$('mealCarbs').value=x.carbs??'';$('mealFat').value=x.fat??'';$('mealFiber').value=x.fiber??'';$('mealSugar').value=x.sugar??'';$('mealSatFat').value=x.satFat??'';$('mealSodium').value=x.sodium??'';$('servingGrams').value=x.servingGrams??100;window._selectedFoodNutrition=x.nutritionPer100g||null;currentPhoto=x.photo||'';$('identifyFood').disabled=!currentPhoto;$('foodRecognitionResults').innerHTML='';if(currentPhoto){$('preview').src=currentPhoto;$('preview').style.display='block'}$('formTitle').textContent='Edit meal';$('saveBtn').textContent='Save changes';switchTab('add')};
+window.editEntry=id=>{const x=entries.find(e=>e.id===id);if(!x)return;$('editId').value=x.id;$('mealType').value=x.type;$('mealDate').value=x.date;$('foods').value=x.foods;$('notes').value=x.notes||'';$('mealCalories').value=x.calories??'';$('mealProtein').value=x.protein??'';$('mealCarbs').value=x.carbs??'';$('mealFat').value=x.fat??'';$('mealFiber').value=x.fiber??'';$('mealSugar').value=x.sugar??'';$('mealSatFat').value=x.satFat??'';$('mealSodium').value=x.sodium??'';$('servingGrams').value=x.servingGrams??100;window._selectedFoodNutrition=x.nutritionPer100g||null;window._manualNutritionFields=new Set(x.manualNutritionFields||[]);currentPhoto=x.photo||'';$('identifyFood').disabled=!currentPhoto;$('foodRecognitionResults').innerHTML='';if(currentPhoto){$('preview').src=currentPhoto;$('preview').style.display='block'}$('formTitle').textContent='Edit meal';$('saveBtn').textContent='Save changes';switchTab('add')};
 window.deleteEntry=id=>{if(!confirm('Delete this meal entry?'))return;entries=entries.filter(x=>x.id!==id);persist();render();renderHome()};
 $('prevDay').onclick=()=>{selectedDay.setDate(selectedDay.getDate()-1);render()};$('nextDay').onclick=()=>{selectedDay.setDate(selectedDay.getDate()+1);render()};$('dateLabel').onclick=()=>{selectedDay=new Date();selectedDay.setHours(12,0,0,0);render()};
 function renderWeights(){const list=[...weights].sort((a,b)=>a.date.localeCompare(b.date));$('weightList').innerHTML=list.length?list.slice().reverse().map(x=>`<div class="weight-item"><div><strong>${fmtNum(x.value)} ${esc(x.unit)}</strong><br><small>${new Date(x.date+'T12:00:00').toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'})}${x.note?' · '+esc(x.note):''}</small></div><button onclick="deleteWeight('${x.id}')">Delete</button></div>`).join(''):'<div class="empty">No weight entries yet.</div>';drawWeightChart(list);renderHome()}
@@ -590,6 +586,10 @@ window.onFoodSearch=(raw,error)=>{
  box.innerHTML=list.map((f,i)=>`<div class="entry"><strong>${esc(f.name)}</strong><p class="muted">${esc(f.brand||f.source)} · per 100 g</p><p>${f.calories==null?'Nutrition not fully available':fmtNum(f.calories)+' kcal'} · Protein ${f.protein==null?'—':fmtNum(f.protein)+' g'} · Carbs ${f.carbs==null?'—':fmtNum(f.carbs)+' g'} · Fat ${f.fat==null?'—':fmtNum(f.fat)+' g'} · Fibre ${f.fiber==null?'—':fmtNum(f.fiber)+' g'}</p><button class="btn secondary" type="button" onclick="useFoodResult(${i})">Add to this meal</button></div>`).join('');
 };
 window._selectedFoodNutrition=null;
+window._manualNutritionFields=new Set();
+for(const id of ['mealCalories','mealProtein','mealCarbs','mealFat','mealFiber','mealSugar','mealSatFat','mealSodium']){
+ $(id).addEventListener('input',()=>window._manualNutritionFields.add(id));
+}
 window.applyServingNutrition=()=>{
  const base=window._selectedFoodNutrition;
  if(!base)return;
@@ -597,17 +597,58 @@ window.applyServingNutrition=()=>{
  if(!Number.isFinite(grams)||grams<0)return;
  const factor=grams/100;
  for(const [key,id] of Object.entries({calories:'mealCalories',protein:'mealProtein',carbs:'mealCarbs',fat:'mealFat',fiber:'mealFiber',sugar:'mealSugar',satFat:'mealSatFat',sodium:'mealSodium'})){
-  $(id).value=base[key]==null?'':fmtNum(base[key]*factor);
+  if(!window._manualNutritionFields.has(id))$(id).value=base[key]==null?'':fmtNum(base[key]*factor);
  }
 };
 $('servingGrams').addEventListener('input',()=>window.applyServingNutrition());
+window._foodPortionRequestId=null;
+window.onFoodPortions=(fdcId,raw,error)=>{
+ if(String(fdcId)!==String(window._foodPortionRequestId))return;
+ let portions=[];
+ try{portions=JSON.parse(raw)}catch{}
+ const wrap=$('foodPortionWrap'),select=$('foodPortionSelect');
+ select.innerHTML='<option value="">Choose a serving size</option>';
+ if(!portions.length){
+  wrap.style.display='none';
+  $('foodPortionInfo').textContent=error?'Serving sizes could not be loaded. You can enter grams manually.':'No measured serving sizes are available for this food.';
+  return;
+ }
+ portions.forEach(portion=>{
+  const option=document.createElement('option');
+  option.value=String(portion.grams);
+  option.textContent=portion.label+' ('+fmtNum(portion.grams)+' g)';
+  select.appendChild(option);
+ });
+ wrap.style.display='block';
+ $('foodPortionInfo').textContent='Choose a measured portion to fill in its gram weight.';
+};
+$('foodPortionSelect').addEventListener('change',()=>{
+ const grams=Number($('foodPortionSelect').value);
+ if(!Number.isFinite(grams)||grams<=0)return;
+ $('servingGrams').value=String(grams);
+ window.applyServingNutrition();
+});
 window.useFoodResult=i=>{
  const f=window.foodSearchItems?.[i];if(!f)return;
+ window._foodPortionRequestId=f.fdcId||null;
+ $('foodPortionWrap').style.display='none';
+ $('foodPortionSelect').innerHTML='<option value="">Choose a serving size</option>';
+ $('foodPortionInfo').textContent='';
+ if(f.fdcId&&window.MealJournalAndroid?.getFoodPortions){
+  window.MealJournalAndroid.getFoodPortions(
+   String(f.fdcId),localStorage.getItem('mealJournalUsdaApiKey')||''
+  );
+ }else if(f.servingLabel){
+  $('foodPortionInfo').textContent='Database serving information: '+f.servingLabel+' (gram weight unavailable; enter grams manually).';
+  $('foodPortionWrap').style.display='block';
+ }
  $('foods').value=($('foods').value?$('foods').value+'\n':'')+f.name+' (nutrition values per 100 g)';
  window._selectedFoodNutrition={};
+ window._manualNutritionFields.clear();
  for(const key of ['calories','protein','carbs','fat','fiber','sugar','satFat','sodium']){
-  const value=Number(f[key]);
-  window._selectedFoodNutrition[key]=Number.isFinite(value)?value:null;
+  const raw=f[key];
+  const value=Number(raw);
+  window._selectedFoodNutrition[key]=raw==null||raw===''?null:(Number.isFinite(value)?value:null);
  }
  window.applyServingNutrition();
 };
@@ -789,19 +830,35 @@ $('mjPrevMonth').onclick=()=>{month.setMonth(month.getMonth()-1);renderCalendar(
 $('mjNextMonth').onclick=()=>{month.setMonth(month.getMonth()+1);renderCalendar()};
 
 function renderTrends(){
- const metric=$('mjTrendMetric').value;
- const end=new Date();end.setHours(12,0,0,0);
- const days=[];
- for(let i=13;i>=0;i--){const d=new Date(end);d.setDate(d.getDate()-i);const key=dayKey(d),list=entries.filter(x=>(x.date||'').slice(0,10)===key);
-  const value=metric==='meals'?list.length:list.reduce((a,x)=>a+(Number(x[metric])||0),0);
-  days.push({key,value,label:d.toLocaleDateString([],{month:'numeric',day:'numeric'})});
- }
- const max=Math.max(1,...days.map(x=>x.value));
- $('mjTrends').innerHTML=days.map(x=>`<div style="display:grid;grid-template-columns:43px 1fr 48px;gap:7px;align-items:center;margin:7px 0;font-size:.75rem"><span>${x.label}</span><div style="height:12px;background:var(--pale);border-radius:8px;overflow:hidden"><div style="height:100%;width:${x.value/max*100}%;background:var(--green);border-radius:8px"></div></div><span style="text-align:right">${fmtNum(x.value)}</span></div>`).join('')+
- '<p class="muted" style="font-size:.75rem">Last 14 days · recorded information only, no targets.</p>';
+ const key=dayKey(selectedDay);
+ const daily=entries.filter(x=>(x.date||'').slice(0,10)===key);
+ const t=totals(daily);
+ const values=[
+  {name:'Protein',value:t.protein,color:'#438b63'},
+  {name:'Fibre',value:t.fiber,color:'#a477bd'},
+  {name:'Fat',value:t.fat,color:'#668bd3'},
+  {name:'Carbs',value:t.carbs,color:'#e5a33b'}
+ ];
+ const total=values.reduce((sum,x)=>sum+x.value,0);
+ let cursor=0;
+ const stops=values.map(x=>{
+  const pct=total>0?x.value/total*100:0;
+  const from=cursor;cursor+=pct;
+  return `${x.color} ${from}% ${cursor}%`;
+ });
+ const dateLabel=key===localDate()?'Today':selectedDay.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+ const dateButton=$('crumbTrendDate');
+ if(dateButton)dateButton.textContent=dateLabel+' ▾';
+ const chart=total>0?`conic-gradient(${stops.join(',')})`:'var(--pale)';
+ $('mjTrends').innerHTML=`<div style="display:flex;align-items:center;justify-content:center;gap:22px;flex-wrap:wrap;padding:8px 0 4px">
+  <div role="img" aria-label="Daily macro breakdown: ${values.map(x=>`${x.name} ${total>0?(x.value/total*100).toFixed(1):0}%`).join(', ')}; ${fmtNum(t.calories)} calories" style="width:190px;height:190px;max-width:55vw;max-height:55vw;aspect-ratio:1;border-radius:50%;background:${chart};display:grid;place-items:center;flex:none">
+   <div style="width:62%;height:62%;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:1.65rem;font-weight:750;font-variant-numeric:tabular-nums">${fmtNum(t.calories)}</div>
+  </div>
+  <div style="display:grid;gap:13px;min-width:125px">
+   ${values.map(x=>`<div style="display:flex;align-items:center;gap:9px"><span style="width:11px;height:11px;border-radius:50%;background:${x.color};flex:none"></span><span>${x.name}: ${total>0?(x.value/total*100).toFixed(1):'0'}%</span></div>`).join('')}
+  </div>
+ </div>`;
 }
-$('mjTrendMetric').onchange=renderTrends;
-
 function fillFood(x){
  $('foods').value=($('foods').value?$('foods').value+'\n':'')+x.name;
  for(const [k,id] of Object.entries(nutrientIds))if(x[k]!==undefined)$(id).value=x[k];
@@ -1267,6 +1324,13 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
  const waterCard=$('mjWaterTracker');
  if(calendarCard)trends.insertBefore(calendarCard,trends.firstChild);
  if(trendCard)trends.insertBefore(trendCard,calendarCard?.nextSibling||trends.firstChild);
+ const trendDateButton=document.createElement('button');
+ trendDateButton.type='button';
+ trendDateButton.id='crumbTrendDate';
+ trendDateButton.className='btn secondary';
+ trendDateButton.style.cssText='width:100%;margin:0 0 12px;text-align:center';
+ trendDateButton.textContent='Today ▾';
+ trends.insertBefore(trendDateButton,calendarCard||trends.firstChild);
 
  // Keep old home data targets in the DOM for the existing renderer, but hide the old dashboard.
  const oldHome=[...home.children];
@@ -1311,9 +1375,9 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
  if(calendarCard){
   calendarCard.classList.add('crumb-calendar-collapsed');
   calendarCard.style.display='none';
-  const dateButton=$('dateLabel');
+  const dateButton=$('crumbTrendDate');
   if(dateButton){
-   dateButton.title='Tap to show calendar';
+   dateButton.title='Choose a date';
    dateButton.addEventListener('click',()=>{
     const open=calendarCard.style.display!=='none';
     calendarCard.style.display=open?'none':'block';
@@ -1478,6 +1542,242 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
  searchButton?.addEventListener('click',recipeSearch);
  searchInput?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();recipeSearch()}});
  renderSaved();
+
+
+ // CRUMB_GROCERIES_ACCESSIBILITY_THEMES_V1
+
+ // Rename Recipes to Groceries while preserving recipe search and builder.
+ const recipesNav=document.querySelector('.bottom button[data-tab="recipes"]');
+ if(recipesNav){recipesNav.setAttribute('aria-label','Groceries');recipesNav.innerHTML='<span class="ico" aria-hidden="true">▧</span>Groceries'}
+
+ const groceryCard=make('div','card');
+ groceryCard.id='crumbGroceriesWorkspace';
+ groceryCard.innerHTML=`
+  <h3>Meal planner</h3>
+  <p class="muted">Plan meals ahead, one day at a time.</p>
+  <label for="crumbPlanDate">Date</label>
+  <input id="crumbPlanDate" type="date">
+  <label for="crumbPlanType">Meal</label>
+  <select id="crumbPlanType">
+   <option>Breakfast</option><option>Lunch</option><option>Dinner</option><option>Snack</option>
+  </select>
+  <label for="crumbPlanMeal">Meal or idea</label>
+  <input id="crumbPlanMeal" maxlength="120" placeholder="What would you like to have?">
+  <label for="crumbPlanNotes">Ingredients or notes (optional)</label>
+  <textarea id="crumbPlanNotes" rows="2" placeholder="Add ingredients or a note"></textarea>
+  <button class="btn" type="button" id="crumbAddPlan">Add to planner</button>
+  <div id="crumbPlanList" aria-live="polite" style="margin-top:12px"></div>
+  <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
+  <h3>Meal templates</h3>
+  <p class="muted">Save meal ideas to reuse in your planner.</p>
+  <label for="crumbTemplateName">Template name</label>
+  <input id="crumbTemplateName" maxlength="80" placeholder="e.g. Easy breakfast">
+  <button class="btn secondary" type="button" id="crumbSaveTemplate">Save current meal as template</button>
+  <div id="crumbTemplateList" aria-live="polite" style="margin-top:12px"></div>
+  <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
+  <h3>Grocery shopping list</h3>
+  <p class="muted">Add items as you think of them, then check them off while shopping.</p>
+  <div class="toolbar">
+   <input id="crumbGroceryItem" maxlength="120" placeholder="Add a grocery item" aria-label="New grocery item">
+   <button class="btn" type="button" id="crumbAddGrocery">Add</button>
+  </div>
+  <div id="crumbGroceryList" aria-live="polite" style="margin-top:12px"></div>
+ `;
+ recipes.insertBefore(groceryCard,recipes.children[1]||null);
+
+ const crumbRead=(key)=>{try{const v=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(v)?v:[]}catch{return []}};
+ const crumbWrite=(key,value)=>localStorage.setItem(key,JSON.stringify(value));
+ const crumbPlanKey='crumb_meal_plan_v1';
+ const crumbTemplateKey='crumb_meal_templates_v1';
+ const crumbGroceryKey='crumb_grocery_list_v1';
+ const crumbToday=()=>new Date().toLocaleDateString('en-CA');
+ const crumbId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+
+ function renderCrumbPlan(){
+  const date=$('crumbPlanDate').value||crumbToday();
+  const items=crumbRead(crumbPlanKey).filter(x=>x.date===date);
+  $('crumbPlanList').innerHTML=items.length?items.map(x=>`
+   <div class="entry">
+    <strong>${esc(x.type)}: ${esc(x.name)}</strong>
+    ${x.notes?`<p class="muted">${esc(x.notes)}</p>`:''}
+    <div class="entry-actions"><button type="button" data-plan-delete="${esc(x.id)}" aria-label="Remove ${esc(x.name)} from planner">Remove</button></div>
+   </div>`).join(''):'<p class="muted">Nothing planned for this date yet.</p>';
+  $('crumbPlanList').querySelectorAll('[data-plan-delete]').forEach(b=>b.onclick=()=>{
+   crumbWrite(crumbPlanKey,crumbRead(crumbPlanKey).filter(x=>x.id!==b.dataset.planDelete));renderCrumbPlan();
+  });
+ }
+ $('crumbPlanDate').value=crumbToday();
+ $('crumbPlanDate').addEventListener('change',renderCrumbPlan);
+ $('crumbAddPlan').onclick=()=>{
+  const name=$('crumbPlanMeal').value.trim();
+  if(!name){alert('Enter a meal or idea first.');return}
+  const a=crumbRead(crumbPlanKey);
+  a.push({id:crumbId(),date:$('crumbPlanDate').value||crumbToday(),type:$('crumbPlanType').value,name,notes:$('crumbPlanNotes').value.trim()});
+  crumbWrite(crumbPlanKey,a);
+  $('crumbPlanMeal').value='';$('crumbPlanNotes').value='';renderCrumbPlan();
+ };
+
+ function renderCrumbTemplates(){
+  const a=crumbRead(crumbTemplateKey);
+  $('crumbTemplateList').innerHTML=a.length?a.map(x=>`
+   <div class="entry">
+    <strong>${esc(x.name)}</strong><p class="muted">${esc(x.type)} · ${esc(x.meal)}</p>
+    ${x.notes?`<p class="muted">${esc(x.notes)}</p>`:''}
+    <div class="entry-actions">
+     <button type="button" data-template-use="${esc(x.id)}">Use in planner</button>
+     <button type="button" data-template-delete="${esc(x.id)}">Delete</button>
+    </div>
+   </div>`).join(''):'<p class="muted">No meal templates saved yet.</p>';
+  $('crumbTemplateList').querySelectorAll('[data-template-use]').forEach(b=>b.onclick=()=>{
+   const x=crumbRead(crumbTemplateKey).find(z=>z.id===b.dataset.templateUse);if(!x)return;
+   $('crumbPlanType').value=x.type;$('crumbPlanMeal').value=x.meal;$('crumbPlanNotes').value=x.notes||'';
+   $('crumbPlanMeal').focus();
+  });
+  $('crumbTemplateList').querySelectorAll('[data-template-delete]').forEach(b=>b.onclick=()=>{
+   crumbWrite(crumbTemplateKey,crumbRead(crumbTemplateKey).filter(x=>x.id!==b.dataset.templateDelete));renderCrumbTemplates();
+  });
+ }
+ $('crumbSaveTemplate').onclick=()=>{
+  const name=$('crumbTemplateName').value.trim(),meal=$('crumbPlanMeal').value.trim();
+  if(!name||!meal){alert('Enter a template name and meal idea first.');return}
+  const a=crumbRead(crumbTemplateKey);
+  a.push({id:crumbId(),name,meal,type:$('crumbPlanType').value,notes:$('crumbPlanNotes').value.trim()});
+  crumbWrite(crumbTemplateKey,a);$('crumbTemplateName').value='';renderCrumbTemplates();
+ };
+ function renderCrumbGroceries(){
+  const a=crumbRead(crumbGroceryKey);
+  $('crumbGroceryList').innerHTML=a.length?a.map(x=>`
+   <div class="entry" style="display:flex;align-items:center;gap:10px">
+    <input type="checkbox" data-grocery-check="${esc(x.id)}" ${x.done?'checked':''} aria-label="Mark ${esc(x.name)} as ${x.done?'not purchased':'purchased'}" style="width:22px;min-width:22px">
+    <span style="flex:1;${x.done?'text-decoration:line-through;opacity:.65':''}">${esc(x.name)}</span>
+    <button type="button" data-grocery-delete="${esc(x.id)}" aria-label="Remove ${esc(x.name)}">Remove</button>
+   </div>`).join(''):'<p class="muted">Your shopping list is empty.</p>';
+  $('crumbGroceryList').querySelectorAll('[data-grocery-check]').forEach(b=>b.onchange=()=>{
+   const list=crumbRead(crumbGroceryKey),x=list.find(z=>z.id===b.dataset.groceryCheck);
+   if(x){x.done=b.checked;crumbWrite(crumbGroceryKey,list);renderCrumbGroceries()}
+  });
+  $('crumbGroceryList').querySelectorAll('[data-grocery-delete]').forEach(b=>b.onclick=()=>{
+   crumbWrite(crumbGroceryKey,crumbRead(crumbGroceryKey).filter(x=>x.id!==b.dataset.groceryDelete));renderCrumbGroceries();
+  });
+ }
+ function addCrumbGrocery(){
+  const input=$('crumbGroceryItem'),name=input.value.trim();if(!name)return;
+  const a=crumbRead(crumbGroceryKey);a.push({id:crumbId(),name,done:false});
+  crumbWrite(crumbGroceryKey,a);input.value='';renderCrumbGroceries();input.focus();
+ }
+ $('crumbAddGrocery').onclick=addCrumbGrocery;
+ $('crumbGroceryItem').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addCrumbGrocery()}});
+ renderCrumbPlan();renderCrumbTemplates();renderCrumbGroceries();
+
+ // Expandable Accessibility settings.
+ const accessibility=make('details','settings-details');
+ accessibility.id='crumbAccessibility';
+ accessibility.innerHTML=`
+  <summary>Accessibility</summary>
+  <div style="padding-top:12px">
+   <label for="crumbFont">Reading font</label>
+   <select id="crumbFont">
+    <option value="system">System default</option>
+    <option value="opendyslexic">OpenDyslexic</option>
+   </select>
+   <label for="crumbFontSize">Text size: <span id="crumbFontSizeValue">16</span> px</label>
+   <input id="crumbFontSize" type="range" min="14" max="22" step="1" value="16">
+   <label><input id="crumbLargeTargets" type="checkbox" style="width:auto"> Larger buttons and touch targets</label>
+   <label><input id="crumbHighContrast" type="checkbox" style="width:auto"> Higher contrast</label>
+   <label><input id="crumbReduceMotion" type="checkbox" style="width:auto"> Reduce animations</label>
+  </div>`;
+ settings.appendChild(accessibility);
+
+ // Expandable colour Themes. Light/dark mode remains a separate setting.
+ const themes=make('details','settings-details');
+ themes.id='crumbThemes';
+ themes.innerHTML=`
+  <summary>Themes</summary>
+  <div style="padding-top:12px">
+   <label for="crumbThemeSelect">Colour theme</label>
+   <select id="crumbThemeSelect">
+    <option value="forest">Forest</option>
+    <option value="ocean">Ocean</option>
+    <option value="lavender">Lavender</option>
+    <option value="rose">Rose</option>
+    <option value="sunset">Sunset</option>
+    <option value="monochrome">Monochrome</option>
+   </select>
+   <p class="muted">Your colour theme is independent of the flower light/dark toggle.</p>
+  </div>`;
+ settings.appendChild(themes);
+
+ const crumbThemeStyle=make('style');
+ crumbThemeStyle.textContent=`
+ @font-face{font-family:OpenDyslexic;src:url("fonts/OpenDyslexic-Regular.woff2") format("woff2");font-weight:400;font-display:swap}
+ body.mj-open-dyslexic,body.mj-open-dyslexic button,body.mj-open-dyslexic input,body.mj-open-dyslexic select,body.mj-open-dyslexic textarea{font-family:OpenDyslexic,Arial,sans-serif!important}
+ body.mj-font-large{font-size:var(--crumb-font-size,16px)}
+ body.mj-font-large input,body.mj-font-large textarea,body.mj-font-large select,body.mj-font-large button{font-size:inherit}
+ body.mj-large-targets button,body.mj-large-targets input,body.mj-large-targets select{min-height:48px}
+ body.mj-large-targets .bottom button{min-height:58px}
+ body.mj-high-contrast{--muted:#53645a;--line:#89988d}
+ body.mj-dark.mj-high-contrast{--muted:#e0d9e2;--line:#77707d}
+ body.mj-reduce-motion *,body.mj-reduce-motion *::before,body.mj-reduce-motion *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}
+ body[data-theme="forest"]{--accent:#3c865f;--accent-dark:#286b49;--pale:#e8f3e9}
+ body[data-theme="ocean"]{--accent:#287eaa;--accent-dark:#155b82;--pale:#e2f2fa}
+ body[data-theme="lavender"]{--accent:#8970b8;--accent-dark:#624a91;--pale:#f0eafa}
+ body[data-theme="rose"]{--accent:#c45f83;--accent-dark:#963c60;--pale:#fae9ef}
+ body[data-theme="sunset"]{--accent:#c97838;--accent-dark:#96501f;--pale:#fff0df}
+ body[data-theme="monochrome"]{--accent:#555b60;--accent-dark:#30363a;--pale:#e9ebed}
+ body.mj-dark[data-theme="forest"]{--accent:#77c796;--accent-dark:#9adbb2;--pale:#203a2a}
+ body.mj-dark[data-theme="ocean"]{--accent:#71c5e9;--accent-dark:#9cddf5;--pale:#193747}
+ body.mj-dark[data-theme="lavender"]{--accent:#c0a8ed;--accent-dark:#d5c5f5;--pale:#342947}
+ body.mj-dark[data-theme="rose"]{--accent:#ef9bb8;--accent-dark:#ffc0d3;--pale:#422331}
+ body.mj-dark[data-theme="sunset"]{--accent:#f0ad70;--accent-dark:#ffca9c;--pale:#402b1d}
+ body.mj-dark[data-theme="monochrome"]{--accent:#c2c7cc;--accent-dark:#e1e4e7;--pale:#303438}
+ `;
+ document.head.appendChild(crumbThemeStyle);
+
+ const crumbPrefs={
+  font:localStorage.getItem('crumb_access_font')||'system',
+  size:localStorage.getItem('crumb_access_size')||'16',
+  large:localStorage.getItem('crumb_access_large')==='true',
+  contrast:localStorage.getItem('crumb_access_contrast')==='true',
+  motion:localStorage.getItem('crumb_access_motion')==='true',
+  theme:localStorage.getItem('crumb_theme')||'forest'
+ };
+ const crumbApplyFont=()=>{
+  document.body.classList.toggle('mj-open-dyslexic',crumbPrefs.font==='opendyslexic');
+  $('crumbFont').value=crumbPrefs.font;
+ };
+ const crumbApplySize=()=>{
+  document.documentElement.style.setProperty('--crumb-font-size',crumbPrefs.size+'px');
+  document.body.classList.add('mj-font-large');
+  $('crumbFontSize').value=crumbPrefs.size;$('crumbFontSizeValue').textContent=crumbPrefs.size;
+ };
+ const crumbApplyAccessibility=()=>{
+  document.body.classList.toggle('mj-large-targets',crumbPrefs.large);
+  document.body.classList.toggle('mj-high-contrast',crumbPrefs.contrast);
+  document.body.classList.toggle('mj-reduce-motion',crumbPrefs.motion);
+  $('crumbLargeTargets').checked=crumbPrefs.large;
+  $('crumbHighContrast').checked=crumbPrefs.contrast;
+  $('crumbReduceMotion').checked=crumbPrefs.motion;
+ };
+ const crumbApplyTheme=()=>{
+  document.body.dataset.theme=crumbPrefs.theme;
+  $('crumbThemeSelect').value=crumbPrefs.theme;
+ };
+ crumbApplyFont();crumbApplySize();crumbApplyAccessibility();crumbApplyTheme();
+
+ $('crumbFont').onchange=()=>{crumbPrefs.font=$('crumbFont').value;localStorage.setItem('crumb_access_font',crumbPrefs.font);crumbApplyFont()};
+ $('crumbFontSize').oninput=()=>{crumbPrefs.size=$('crumbFontSize').value;localStorage.setItem('crumb_access_size',crumbPrefs.size);crumbApplySize()};
+ $('crumbLargeTargets').onchange=()=>{crumbPrefs.large=$('crumbLargeTargets').checked;localStorage.setItem('crumb_access_large',String(crumbPrefs.large));crumbApplyAccessibility()};
+ $('crumbHighContrast').onchange=()=>{crumbPrefs.contrast=$('crumbHighContrast').checked;localStorage.setItem('crumb_access_contrast',String(crumbPrefs.contrast));crumbApplyAccessibility()};
+ $('crumbReduceMotion').onchange=()=>{crumbPrefs.motion=$('crumbReduceMotion').checked;localStorage.setItem('crumb_access_motion',String(crumbPrefs.motion));crumbApplyAccessibility()};
+ $('crumbThemeSelect').onchange=()=>{crumbPrefs.theme=$('crumbThemeSelect').value;localStorage.setItem('crumb_theme',crumbPrefs.theme);crumbApplyTheme()};
+
+ // Add useful accessible names to controls that otherwise expose no label.
+ document.querySelectorAll('button').forEach(b=>{
+  if(!b.hasAttribute('aria-label')&&!b.getAttribute('aria-labelledby')){
+   const label=(b.innerText||b.textContent||'').trim();
+   if(label)b.setAttribute('aria-label',label);
+  }
+ });
 
  // Date, greeting, and daily affirmation toast.
  const dateText=new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
