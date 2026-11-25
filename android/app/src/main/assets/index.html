@@ -598,9 +598,6 @@ window.onFoodSearch=(raw,error)=>{
 };
 window._selectedFoodNutrition=null;
 window._manualNutritionFields=new Set();
-for(const id of ['mealCalories','mealProtein','mealCarbs','mealFat','mealFiber','mealSugar','mealSatFat','mealSodium']){
- $(id).addEventListener('input',()=>window._manualNutritionFields.add(id));
-}
 window.applyServingNutrition=()=>{
  const base=window._selectedFoodNutrition;
  if(!base)return;
@@ -608,7 +605,7 @@ window.applyServingNutrition=()=>{
  if(!Number.isFinite(grams)||grams<0)return;
  const factor=grams/100;
  for(const [key,id] of Object.entries({calories:'mealCalories',protein:'mealProtein',carbs:'mealCarbs',fat:'mealFat',fiber:'mealFiber',sugar:'mealSugar',satFat:'mealSatFat',sodium:'mealSodium'})){
-  if(!window._manualNutritionFields.has(id))$(id).value=base[key]==null?'':fmtNum(base[key]*factor);
+  $(id).value=base[key]==null?'':fmtNum(base[key]*factor);
  }
 };
 $('servingGrams').addEventListener('input',()=>window.applyServingNutrition());
@@ -621,7 +618,7 @@ window.onFoodPortions=(fdcId,raw,error)=>{
  select.innerHTML='<option value="">Choose a serving size</option>';
  if(!portions.length){
   wrap.style.display='none';
-  $('foodPortionInfo').textContent=error?'Serving sizes could not be loaded. You can enter grams manually.':'No measured serving sizes are available for this food.';
+  $('foodPortionInfo').textContent=error?'Serving sizes unavailable. Using 100 g.':'No measured portions listed. Using 100 g.';
   return;
  }
  portions.forEach(portion=>{
@@ -631,7 +628,10 @@ window.onFoodPortions=(fdcId,raw,error)=>{
   select.appendChild(option);
  });
  wrap.style.display='block';
- $('foodPortionInfo').textContent='Choose a measured portion to fill in its gram weight.';
+ select.selectedIndex=1;
+ $('servingGrams').value=select.value;
+ $('foodPortionInfo').textContent='Default serving selected. Change it to recalculate nutrition.';
+ window.applyServingNutrition();
 };
 $('foodPortionSelect').addEventListener('change',()=>{
  const grams=Number($('foodPortionSelect').value);
@@ -645,25 +645,21 @@ window.useFoodResult=i=>{
  $('foodPortionWrap').style.display='none';
  $('foodPortionSelect').innerHTML='<option value="">Choose a serving size</option>';
  $('foodPortionInfo').textContent='';
- if(f.fdcId&&window.MealJournalAndroid?.getFoodPortions){
-  window.MealJournalAndroid.getFoodPortions(
-   String(f.fdcId),localStorage.getItem('mealJournalUsdaApiKey')||''
-  );
- }else if(f.servingLabel){
-  $('foodPortionInfo').textContent='Database serving information: '+f.servingLabel+' (gram weight unavailable; enter grams manually).';
-  $('foodPortionWrap').style.display='block';
- }
- $('foods').value=($('foods').value?$('foods').value+'\n':'')+f.name+' (nutrition values per 100 g)';
+ $('servingGrams').value='100';
+ $('foods').value=($('foods').value?$('foods').value+'\n':'')+f.name;
  window._selectedFoodNutrition={};
  window._manualNutritionFields.clear();
  for(const key of ['calories','protein','carbs','fat','fiber','sugar','satFat','sodium']){
-  const raw=f[key];
-  const value=Number(raw);
+  const raw=f[key],value=Number(raw);
   window._selectedFoodNutrition[key]=raw==null||raw===''?null:(Number.isFinite(value)?value:null);
  }
  window.applyServingNutrition();
+ if(f.fdcId&&window.MealJournalAndroid?.getFoodPortions){
+  window.MealJournalAndroid.getFoodPortions(String(f.fdcId),localStorage.getItem('mealJournalUsdaApiKey')||'');
+ }else if(f.servingLabel){
+  $('foodPortionInfo').textContent='Serving information: '+f.servingLabel+'. Gram conversion unavailable.';
+ }
 };
-
 $('userName').value=localStorage.getItem('mealJournalUserName')||'';
 $('saveUserName').onclick=()=>{
  const name=$('userName').value.trim().slice(0,40);
