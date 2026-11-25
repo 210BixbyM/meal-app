@@ -40,3 +40,9 @@ dependencies {
     implementation 'com.google.mlkit:barcode-scanning:17.3.0'
     implementation 'com.google.mlkit:text-recognition:16.0.1'
 }
+
+android.applicationVariants.all { variant ->
+    variant.outputs.all {
+        outputFileName = "Crumb-${variant.versionName}.apk"
+    }
+}
