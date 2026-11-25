@@ -265,84 +265,164 @@ public class GroceryScannerActivity extends ComponentActivity {
 
 
     private void lookupFoodBase(String code) {
-        if (foodBaseApiKey.trim().isEmpty()) {
-            runOnUiThread(() -> status.setText(
-                "Barcode detected. Add your FoodBase key in Settings to look it up."
-            ));
-            return;
-        }
-
         cameraExecutor.execute(() -> {
-            HttpURLConnection connection = null;
-            try {
-                URL url = new URL(
-                    "https://foodbase.dev/v1/foods/barcode/" + code + "?lang=en"
-                );
-                connection = (HttpURLConnection) url.openConnection();
-                connection.setRequestMethod("GET");
-                connection.setConnectTimeout(12000);
-                connection.setReadTimeout(15000);
-                connection.setRequestProperty("X-API-Key", foodBaseApiKey.trim());
-                connection.setRequestProperty("Accept", "application/json");
+            String foodBaseError = "";
 
-                int statusCode = connection.getResponseCode();
-                InputStream input = statusCode >= 200 && statusCode < 300
-                    ? connection.getInputStream() : connection.getErrorStream();
+            if (!foodBaseApiKey.trim().isEmpty()) {
+                HttpURLConnection connection = null;
+                try {
+                    URL url = new URL(
+                        "https://foodbase.dev/v1/foods/barcode/" + code + "?lang=en"
+                    );
+                    connection = (HttpURLConnection) url.openConnection();
+                    connection.setRequestMethod("GET");
+                    connection.setConnectTimeout(12000);
+                    connection.setReadTimeout(15000);
+                    connection.setRequestProperty("X-API-Key", foodBaseApiKey.trim());
+                    connection.setRequestProperty("Accept", "application/json");
 
-                ByteArrayOutputStream output = new ByteArrayOutputStream();
-                if (input != null) {
-                    byte[] buffer = new byte[4096];
-                    int count;
-                    while ((count = input.read(buffer)) != -1)
-                        output.write(buffer, 0, count);
-                    input.close();
+                    int statusCode = connection.getResponseCode();
+                    if (statusCode >= 200 && statusCode < 300) {
+                        InputStream input = connection.getInputStream();
+                        ByteArrayOutputStream output = new ByteArrayOutputStream();
+                        byte[] buffer = new byte[4096];
+                        int count;
+                        while ((count = input.read(buffer)) != -1)
+                            output.write(buffer, 0, count);
+                        input.close();
+
+                        JSONObject response =
+                            new JSONObject(output.toString("UTF-8"));
+                        JSONObject product = response.optJSONObject("data");
+                        if (product == null) product = response;
+
+                        JSONObject macros =
+                            product.optJSONObject("nutrition_summary");
+                        if (macros == null)
+                            macros = product.optJSONObject("macros");
+                        if (macros == null) macros = new JSONObject();
+
+                        JSONObject normalized = new JSONObject();
+                        normalized.put("barcode", code);
+                        normalized.put("name", product.optString("name_default",
+                            product.optString("name_localized",
+                            product.optString("product_name", "Food product"))));
+                        normalized.put("brand", product.optString("brand", ""));
+                        normalized.put("source", "FoodBase");
+                        normalized.put("basis", "per 100 g");
+                        normalized.put("calories", macros.opt("energy_kcal"));
+                        normalized.put("protein", macros.opt("proteins_g"));
+                        normalized.put("carbs", macros.opt("carbs_g"));
+                        normalized.put("fat", macros.opt("fat_g"));
+                        normalized.put("fiber", macros.opt("fiber_g"));
+                        normalized.put("sugar", macros.opt("sugars_g"));
+                        normalized.put("satFat", macros.opt("saturated_fat_g"));
+                        normalized.put("sodium", macros.opt("sodium_mg"));
+
+                        matchedProduct = normalized;
+                        runOnUiThread(() -> showProductCard(normalized));
+                        return;
+                    }
+
+                    foodBaseError = "FoodBase error " + statusCode;
+                } catch (Exception e) {
+                    foodBaseError = e.getMessage() == null
+                        ? "FoodBase lookup failed." : e.getMessage();
+                } finally {
+                    if (connection != null) connection.disconnect();
                 }
-
-                if (statusCode == 404) {
-                    runOnUiThread(() -> status.setText(
-                        "No FoodBase match. You can still photograph the package."
-                    ));
-                    return;
-                }
-                if (statusCode < 200 || statusCode >= 300)
-                    throw new Exception("FoodBase error " + statusCode);
-
-                JSONObject response = new JSONObject(output.toString("UTF-8"));
-                JSONObject product = response.optJSONObject("data");
-                if (product == null) product = response;
-
-                JSONObject macros = product.optJSONObject("nutrition_summary");
-                if (macros == null) macros = product.optJSONObject("macros");
-                if (macros == null) macros = new JSONObject();
-
-                JSONObject normalized = new JSONObject();
-                normalized.put("barcode", code);
-                normalized.put("name", product.optString("name_default",
-                    product.optString("name_localized",
-                    product.optString("product_name", "Food product"))));
-                normalized.put("brand", product.optString("brand", ""));
-                normalized.put("source", "FoodBase");
-                normalized.put("basis", "per 100 g");
-                normalized.put("calories", macros.opt("energy_kcal"));
-                normalized.put("protein", macros.opt("proteins_g"));
-                normalized.put("carbs", macros.opt("carbs_g"));
-                normalized.put("fat", macros.opt("fat_g"));
-                normalized.put("fiber", macros.opt("fiber_g"));
-                normalized.put("sugar", macros.opt("sugars_g"));
-                normalized.put("satFat", macros.opt("saturated_fat_g"));
-                normalized.put("sodium", macros.opt("sodium_mg"));
-
-                matchedProduct = normalized;
-                runOnUiThread(() -> showProductCard(normalized));
-
-            } catch (Exception e) {
-                runOnUiThread(() -> status.setText(
-                    "Product lookup failed: " + e.getMessage()
-                ));
-            } finally {
-                if (connection != null) connection.disconnect();
+            } else {
+                foodBaseError = "FoodBase key not configured.";
             }
+
+            lookupOpenFoodFacts(code, foodBaseError);
         });
+    }
+
+    private void lookupOpenFoodFacts(String code, String previousError) {
+        HttpURLConnection connection = null;
+        try {
+            runOnUiThread(() ->
+                status.setText("No FoodBase match. Checking Open Food Facts…")
+            );
+
+            URL url = new URL(
+                "https://world.openfoodfacts.org/api/v2/product/" + code + ".json"
+            );
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(12000);
+            connection.setReadTimeout(15000);
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setRequestProperty("User-Agent",
+                "Crumb Android Grocery Scanner");
+
+            int statusCode = connection.getResponseCode();
+            if (statusCode < 200 || statusCode >= 300)
+                throw new Exception("Open Food Facts error " + statusCode);
+
+            InputStream input = connection.getInputStream();
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            byte[] buffer = new byte[4096];
+            int count;
+            while ((count = input.read(buffer)) != -1)
+                output.write(buffer, 0, count);
+            input.close();
+
+            JSONObject response = new JSONObject(output.toString("UTF-8"));
+            if (response.optInt("status", 0) != 1)
+                throw new Exception("Product not found in Open Food Facts.");
+
+            JSONObject product = response.optJSONObject("product");
+            if (product == null)
+                throw new Exception("No product details returned.");
+
+            JSONObject nutrition = product.optJSONObject("nutriments");
+            if (nutrition == null) nutrition = new JSONObject();
+
+            JSONObject normalized = new JSONObject();
+            normalized.put("barcode", code);
+            normalized.put("name", product.optString("product_name",
+                product.optString("product_name_en", "Food product")));
+            normalized.put("brand", product.optString("brands", ""));
+            normalized.put("source", "Open Food Facts");
+            normalized.put("basis", "per 100 g");
+
+            putNutritionValue(normalized, nutrition, "calories", "energy-kcal_100g");
+            putNutritionValue(normalized, nutrition, "protein", "proteins_100g");
+            putNutritionValue(normalized, nutrition, "carbs", "carbohydrates_100g");
+            putNutritionValue(normalized, nutrition, "fat", "fat_100g");
+            putNutritionValue(normalized, nutrition, "fiber", "fiber_100g");
+            putNutritionValue(normalized, nutrition, "sugar", "sugars_100g");
+            putNutritionValue(normalized, nutrition, "satFat", "saturated-fat_100g");
+
+            Object sodium = nutrition.opt("sodium_100g");
+            if (sodium instanceof Number)
+                normalized.put("sodium", ((Number) sodium).doubleValue() * 1000);
+            else
+                normalized.put("sodium", JSONObject.NULL);
+
+            matchedProduct = normalized;
+            runOnUiThread(() -> showProductCard(normalized));
+
+        } catch (Exception e) {
+            String offError = e.getMessage() == null
+                ? "Open Food Facts lookup failed." : e.getMessage();
+            runOnUiThread(() -> status.setText(
+                "No database match. " + previousError + " / " + offError
+                + ". You can still photograph the package."
+            ));
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
+    }
+
+    private void putNutritionValue(
+        JSONObject target, JSONObject source, String targetKey, String sourceKey
+    ) throws Exception {
+        Object value = source.opt(sourceKey);
+        target.put(targetKey,
+            value == null ? JSONObject.NULL : value);
     }
 
     private void showProductCard(JSONObject product) {

@@ -103,60 +103,101 @@ public class MainActivity extends Activity {
 
 
         @JavascriptInterface
-        public void searchFoods(String query, String apiKey) {
+        public void searchFoods(String query, String foodBaseKey,
+                                String usdaApiKey) {
             executor.execute(() -> {
                 JSONArray results = new JSONArray();
-                String error = "";
+                String foodBaseError = "";
 
-                try {
-                    if (apiKey == null || apiKey.trim().isEmpty())
-                        throw new Exception("Add your FoodBase API key in Settings.");
+                if (foodBaseKey != null && !foodBaseKey.trim().isEmpty()) {
+                    try {
+                        String url = "https://foodbase.dev/v1/foods/search?q="
+                            + Uri.encode(query) + "&limit=10&lang=en";
 
-                    String url = "https://foodbase.dev/v1/foods/search?q="
-                        + Uri.encode(query) + "&limit=10&lang=en";
+                        JSONObject response = foodBaseGet(url, foodBaseKey);
+                        JSONArray foods = response.optJSONArray("data");
 
-                    JSONObject response = foodBaseGet(url, apiKey);
-                    JSONArray foods = response.optJSONArray("data");
+                        if (foods != null) {
+                            for (int i = 0; i < Math.min(foods.length(), 3); i++) {
+                                JSONObject food = foods.optJSONObject(i);
+                                if (food == null) continue;
 
-                    if (foods != null) {
-                        for (int i = 0; i < Math.min(foods.length(), 3); i++) {
-                            JSONObject food = foods.optJSONObject(i);
-                            if (food == null) continue;
+                                String id = food.optString("id", "");
+                                if (id.isEmpty()) continue;
 
-                            String id = food.optString("id", "");
-                            if (id.isEmpty()) continue;
+                                JSONObject detail = foodBaseGet(
+                                    "https://foodbase.dev/v1/foods/"
+                                    + Uri.encode(id) + "?lang=en", foodBaseKey);
 
-                            JSONObject detail = foodBaseGet(
-                                "https://foodbase.dev/v1/foods/"
-                                + Uri.encode(id) + "?lang=en", apiKey);
+                                JSONObject product = detail.optJSONObject("data");
+                                if (product == null) product = detail;
 
-                            JSONObject product = detail.optJSONObject("data");
-                            if (product == null) product = detail;
+                                JSONObject macros = product.optJSONObject("nutrition_summary");
+                                if (macros == null) macros = product.optJSONObject("macros");
+                                if (macros == null) macros = new JSONObject();
 
-                            JSONObject macros = product.optJSONObject("nutrition_summary");
-                            if (macros == null)
-                                macros = product.optJSONObject("macros");
-                            if (macros == null) macros = new JSONObject();
-
-                            JSONObject item = new JSONObject();
-                            item.put("source", "FoodBase");
-                            item.put("name", product.optString("name_default",
-                                food.optString("name_default", "Food product")));
-                            item.put("brand", product.optString("brand",
-                                food.optString("brand", "")));
-                            item.put("serving", "per 100 g");
-                            item.put("basis", "per 100 g");
-                            item.put("calories", macros.has("energy_kcal") && !macros.isNull("energy_kcal") ? macros.get("energy_kcal") : JSONObject.NULL);
-                            item.put("protein", macros.has("proteins_g") && !macros.isNull("proteins_g") ? macros.get("proteins_g") : JSONObject.NULL);
-                            item.put("carbs", macros.has("carbs_g") && !macros.isNull("carbs_g") ? macros.get("carbs_g") : JSONObject.NULL);
-                            item.put("fat", macros.has("fat_g") && !macros.isNull("fat_g") ? macros.get("fat_g") : JSONObject.NULL);
-                            item.put("fiber", macros.has("fiber_g") && !macros.isNull("fiber_g") ? macros.get("fiber_g") : JSONObject.NULL);
-                            results.put(item);
+                                JSONObject item = new JSONObject();
+                                item.put("source", "FoodBase");
+                                item.put("name", product.optString("name_default",
+                                    food.optString("name_default", "Food product")));
+                                item.put("brand", product.optString("brand",
+                                    food.optString("brand", "")));
+                                item.put("serving", "per 100 g");
+                                item.put("basis", "per 100 g");
+                                item.put("calories", macros.has("energy_kcal") && !macros.isNull("energy_kcal") ? macros.get("energy_kcal") : JSONObject.NULL);
+                                item.put("protein", macros.has("proteins_g") && !macros.isNull("proteins_g") ? macros.get("proteins_g") : JSONObject.NULL);
+                                item.put("carbs", macros.has("carbs_g") && !macros.isNull("carbs_g") ? macros.get("carbs_g") : JSONObject.NULL);
+                                item.put("fat", macros.has("fat_g") && !macros.isNull("fat_g") ? macros.get("fat_g") : JSONObject.NULL);
+                                item.put("fiber", macros.has("fiber_g") && !macros.isNull("fiber_g") ? macros.get("fiber_g") : JSONObject.NULL);
+                                results.put(item);
+                            }
                         }
+                    } catch (Exception e) {
+                        foodBaseError = e.getMessage() == null
+                            ? "FoodBase search failed." : e.getMessage();
                     }
-                } catch (Exception e) {
-                    error = e.getMessage() == null
-                        ? "FoodBase search failed." : e.getMessage();
+                } else {
+                    foodBaseError = "FoodBase key not configured.";
+                }
+
+                String error = "";
+                if (results.length() == 0) {
+                    try {
+                        String key = usdaApiKey == null || usdaApiKey.trim().isEmpty()
+                            ? "DEMO_KEY" : usdaApiKey.trim();
+
+                        JSONObject response = usdaSearch(query, key);
+                        JSONArray foods = response.optJSONArray("foods");
+
+                        if (foods != null) {
+                            for (int i = 0; i < Math.min(foods.length(), 10); i++) {
+                                JSONObject food = foods.optJSONObject(i);
+                                if (food == null) continue;
+
+                                JSONObject item = new JSONObject();
+                                item.put("source", "USDA FoodData Central");
+                                item.put("name", food.optString("description", "Food product"));
+                                item.put("brand", food.optString("brandOwner", ""));
+                                item.put("serving", "per 100 g");
+                                item.put("basis", "per 100 g");
+                                item.put("calories", usdaNutrient(food, 1008));
+                                item.put("protein", usdaNutrient(food, 1003));
+                                item.put("carbs", usdaNutrient(food, 1005));
+                                item.put("fat", usdaNutrient(food, 1004));
+                                item.put("fiber", usdaNutrient(food, 1079));
+                                item.put("sugar", JSONObject.NULL);
+                                item.put("satFat", JSONObject.NULL);
+                                item.put("sodium", JSONObject.NULL);
+                                results.put(item);
+                            }
+                        }
+                    } catch (Exception e) {
+                        String usdaError = e.getMessage() == null
+                            ? "USDA search failed." : e.getMessage();
+                        error = foodBaseError.isEmpty()
+                            ? "USDA: " + usdaError
+                            : "FoodBase: " + foodBaseError + " USDA: " + usdaError;
+                    }
                 }
 
                 final String payload = results.toString();
@@ -167,6 +208,56 @@ public class MainActivity extends Activity {
                     + JSONObject.quote(payload) + ","
                     + JSONObject.quote(message) + ")", null));
             });
+        }
+
+        private JSONObject usdaSearch(String query, String apiKey)
+                throws Exception {
+            String address = "https://api.nal.usda.gov/fdc/v1/foods/search?api_key="
+                + Uri.encode(apiKey) + "&query=" + Uri.encode(query)
+                + "&pageSize=10";
+
+            HttpURLConnection connection =
+                (HttpURLConnection) new URL(address).openConnection();
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(12000);
+            connection.setReadTimeout(15000);
+            connection.setRequestProperty("Accept", "application/json");
+
+            int status = connection.getResponseCode();
+            InputStream input = status >= 200 && status < 300
+                ? connection.getInputStream() : connection.getErrorStream();
+
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            if (input != null) {
+                byte[] buffer = new byte[4096];
+                int count;
+                while ((count = input.read(buffer)) != -1)
+                    output.write(buffer, 0, count);
+                input.close();
+            }
+            connection.disconnect();
+
+            if (status < 200 || status >= 300)
+                throw new Exception("USDA error " + status
+                    + (status == 403 ? ": check API key or request limit." : ""));
+
+            return new JSONObject(output.toString("UTF-8"));
+        }
+
+        private Object usdaNutrient(JSONObject food, int nutrientId) {
+            JSONArray nutrients = food.optJSONArray("foodNutrients");
+            if (nutrients == null) return JSONObject.NULL;
+
+            for (int i = 0; i < nutrients.length(); i++) {
+                JSONObject nutrient = nutrients.optJSONObject(i);
+                if (nutrient != null
+                        && nutrient.optInt("nutrientId", -1) == nutrientId
+                        && nutrient.has("value")
+                        && !nutrient.isNull("value")) {
+                    return nutrient.opt("value");
+                }
+            }
+            return JSONObject.NULL;
         }
 
         private JSONObject foodBaseGet(String address, String apiKey)

@@ -218,6 +218,17 @@
     <div class="actions"><button class="btn" id="exportBtn">Export backup</button><label class="btn secondary" for="importFile" style="margin:0;display:inline-flex;align-items:center">Import backup</label><input id="importFile" class="hidden" type="file" accept="application/json"></div>
     <div class="actions"><button class="btn warn" id="deleteAll">Delete all meal entries</button><button class="btn warn" id="deleteWeights">Delete weight entries</button></div>
   </div>
+  <div class="card" id="usdaSettingsCard">
+    <h3 style="margin:0 0 5px">USDA FoodData Central</h3>
+    <p class="muted" style="font-size:.83rem">Additional food search fallback. Leave blank to use the limited DEMO_KEY.</p>
+    <label for="usdaApiKey">USDA API key</label>
+    <input id="usdaApiKey" type="password" autocomplete="off" placeholder="Optional — DEMO_KEY used by default">
+    <div class="actions">
+      <button class="btn" id="saveUsdaApiKey">Save API key</button>
+      <a class="link" href="https://api.data.gov/signup/" target="_blank" rel="noopener">Get a free key</a>
+    </div>
+    <p class="muted" id="usdaApiKeyStatus"></p>
+  </div>
   <div class="card">
     <h3 style="margin:0 0 5px">FoodBase</h3>
     <p class="muted" style="font-size:.83rem">Food search and barcode lookup. Your API key is stored on this device.</p>
@@ -230,16 +241,6 @@
     <p class="muted" id="foodBaseKeyStatus"></p>
   </div>
   
-<div class="card" id="mjExtras">
-<h3>Saved meals</h3>
-<label for="mjTemplateName">Meal name</label>
-<input id="mjTemplateName" placeholder="Name this meal">
-<div class="actions">
-<button class="btn secondary" type="button" id="mjSaveTemplate">Save current meal</button>
-<button class="btn secondary" type="button" id="mjLoadTemplate">Load selected meal</button>
-</div>
-<select id="mjTemplates"><option value="">Choose saved meal</option></select>
-</div>
 <div class="card">
 <h3>Daily check-in</h3>
 <label for="mjMood">How are you feeling? (optional)</label>
@@ -292,11 +293,6 @@
 <button class="btn secondary" type="button" id="mjSaveUnit">Save custom unit</button>
 <div id="mjCustomUnits"></div>
 </div>
-<div class="card">
-<h3>Logging streak</h3>
-<label><input type="checkbox" id="mjHideStreak" style="width:auto"> Hide streak display</label>
-<p class="muted">A streak is just an optional record of days with entries. Missing a day is not a failure.</p>
-</div>
 <div class="card"><h3 style="margin:0 0 5px">About Meal Journal</h3><p class="muted" style="font-size:.83rem;margin-bottom:0">Food search and barcode lookup use FoodBase. Database values can vary in completeness and accuracy. Meal photos and journal records are saved locally on this device.</p></div>
 </section>
 </main>
@@ -304,8 +300,9 @@
 
 <nav class="bottom">
   <button data-tab="diary"><span class="ico">▤</span>Diary</button>
-  <button data-tab="weight"><span class="ico">⌁</span>Trends</button>
+  <button data-tab="recipes"><span class="ico">▧</span>Recipes</button>
   <button class="active" data-tab="home"><span class="ico">⌂</span>Home</button>
+  <button data-tab="weight"><span class="ico">⌁</span>Trends</button>
   <button data-tab="profile"><span class="ico">⚙</span>Profile</button>
 </nav>
 
@@ -420,8 +417,15 @@ $('saveFoodBaseKey').onclick=()=>{
  $('foodBaseKeyStatus').textContent=key?'FoodBase API key saved on this device.':'FoodBase API key cleared.';
 };
 $('foodBaseKey').value=localStorage.getItem('mealJournalFoodBaseKey')||'';
+$('saveUsdaApiKey').onclick=()=>{
+ const key=$('usdaApiKey').value.trim();
+ if(key)localStorage.setItem('mealJournalUsdaApiKey',key);
+ else localStorage.removeItem('mealJournalUsdaApiKey');
+ $('usdaApiKeyStatus').textContent=key?'USDA API key saved on this device.':'USDA will use DEMO_KEY.';
+};
+$('usdaApiKey').value=localStorage.getItem('mealJournalUsdaApiKey')||'';
 
-$('searchFoodBtn').onclick=()=>{const q=$('foodSearch').value.trim();if(!q){alert('Enter a food to search.');return}const box=$('foodSearchResults');box.className='product show';box.textContent='Searching FoodBase…';if(window.MealJournalAndroid&&MealJournalAndroid.searchFoods){MealJournalAndroid.searchFoods(q,localStorage.getItem('mealJournalFoodBaseKey')||'')}else{box.textContent='Food database search is available in the installed Android app.'}};
+$('searchFoodBtn').onclick=()=>{const q=$('foodSearch').value.trim();if(!q){alert('Enter a food to search.');return}const box=$('foodSearchResults');box.className='product show';box.textContent='Searching food databases…';if(window.MealJournalAndroid&&MealJournalAndroid.searchFoods){MealJournalAndroid.searchFoods(q,localStorage.getItem('mealJournalFoodBaseKey')||'',localStorage.getItem('mealJournalUsdaApiKey')||'')}else{box.textContent='Food database search is available in the installed Android app.'}};
 
 let naturalActive=false;
 let naturalQueue=[];
@@ -527,7 +531,8 @@ function searchNextNaturalFood(){
  }
  MealJournalAndroid.searchFoods(
   naturalCurrent.food,
-  localStorage.getItem('mealJournalFoodBaseKey')||''
+  localStorage.getItem('mealJournalFoodBaseKey')||'',
+  localStorage.getItem('mealJournalUsdaApiKey')||''
  );
 }
 
@@ -651,27 +656,6 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden){render();
 const get=k=>{try{return JSON.parse(localStorage.getItem(k)||'[]')}catch{return []}};
 const put=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
 const today=()=>dayKey(new Date());
-const templates=get('mj_templates_v1');
-const sel=$('mjTemplates');
-function refresh(){
-sel.innerHTML='<option value="">Choose saved meal</option>';
-templates.forEach((x,i)=>{const o=document.createElement('option');o.value=i;o.textContent=x.name;sel.appendChild(o)});
-}
-refresh();
-$('mjSaveTemplate').onclick=()=>{
-const name=$('mjTemplateName').value.trim();
-if(!name||!$('foods').value.trim()){alert('Enter a meal and a name first.');return}
-templates.push({name,type:$('mealType').value,foods:$('foods').value,calories:$('mealCalories').value,protein:$('mealProtein').value,carbs:$('mealCarbs').value,fat:$('mealFat').value,fiber:$('mealFiber').value,sugar:$('mealSugar').value,satFat:$('mealSatFat').value,sodium:$('mealSodium').value,servingGrams:$('servingGrams').value,notes:$('notes').value});
-put('mj_templates_v1',templates);refresh();alert('Meal saved.');
-};
-$('mjLoadTemplate').onclick=()=>{
-const x=templates[Number(sel.value)];if(!x){alert('Choose a saved meal.');return}
-for(const k of ['type','foods','calories','protein','carbs','fat','fiber','sugar','satFat','sodium','servingGrams','notes']){
-const id={type:'mealType',calories:'mealCalories',protein:'mealProtein',carbs:'mealCarbs',fat:'mealFat',fiber:'mealFiber',sugar:'mealSugar',satFat:'mealSatFat',sodium:'mealSodium',servingGrams:'servingGrams',foods:'foods',notes:'notes'}[k];
-$(id).value=x[k]??'';
-}
-switchTab('add');
-};
 const WATER_GOAL_KEY='mj_water_goal_v1';
 function waterTotal(){
  const total=get('mj_water_v1').filter(x=>x.date===today()).reduce((a,x)=>a+(Number(x.ml)||0),0);
@@ -779,18 +763,11 @@ function streakStats(){
  return {current,best};
 }
 function renderStreak(){
- const hidden=localStorage.getItem('mj_hide_streak')==='true';
- $('mjStreakCard').classList.toggle('hidden',hidden);
- $('mjHideStreak').checked=hidden;
- if(hidden)return;
  const s=streakStats();
  $('mjStreakNumber').textContent=s.current+' '+(s.current===1?'day':'days');
  $('mjStreakMessage').textContent=s.current?'Your recent logging journey. Keep it gentle.':'Whenever you choose to log, it counts.';
  $('mjBestStreak').textContent='Longest run: '+s.best+' '+(s.best===1?'day':'days');
 }
-$('mjHideStreak').onchange=()=>{
- localStorage.setItem('mj_hide_streak',String($('mjHideStreak').checked));renderStreak();
-};
 
 function renderCalendar(){
  const year=month.getFullYear(),m=month.getMonth();
@@ -1258,6 +1235,22 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
  const make=(tag,cls,html)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(html!==undefined)e.innerHTML=html;return e};
  const home=panel('home'),diary=panel('diary'),meals=panel('add'),trends=panel('weight'),settings=panel('profile');
  if(!home||!diary||!meals||!trends||!settings)return;
+ const recipes=make('section','panel');
+ recipes.id='recipes';
+ recipes.innerHTML=`
+  <div class="section-head"><h2>Find recipes</h2><small>TheMealDB</small></div>
+  <div class="card">
+   <label for="crumbRecipeSearch">Search recipes</label>
+   <div class="toolbar">
+    <input id="crumbRecipeSearch" placeholder="Try pasta, chicken, vegetables…">
+    <button class="btn" id="crumbRecipeSearchBtn" type="button">Search</button>
+   </div>
+   <div id="crumbRecipeResults" style="margin-top:10px"><p class="muted">Search for recipes to get started.</p></div>
+  </div>
+  <div class="section-head"><h2>Your saved recipes</h2></div>
+  <div class="card" id="crumbHomeSavedRecipes"><p class="muted">Your saved recipes will appear here.</p></div>
+ `;
+ settings.parentNode.insertBefore(recipes,settings);
  const homeStyle=make('style');
  homeStyle.textContent='.bottom button[data-tab="home"]{flex:0 0 66px;max-width:66px;min-height:64px;margin-top:-17px;border-radius:21px;background:var(--accent);color:#fff;box-shadow:0 5px 15px rgba(57,123,216,.3);transform:scale(1.04);font-weight:800}.bottom button[data-tab="home"] .ico{font-size:1.8rem;line-height:1.35}.bottom button[data-tab="home"].active{background:var(--accent-dark);color:#fff}.settings-details{margin-top:12px;padding:12px;border-top:1px solid var(--line)}.settings-details summary{cursor:pointer;font-weight:600}';
  document.head.appendChild(homeStyle);
@@ -1265,7 +1258,7 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
  // Replace the old five-tab bar, retaining the original panel IDs used by the app.
  const nav=document.querySelector('.bottom');
  if(nav)nav.innerHTML=[
-  ['diary','▤','Diary'],['weight','⌁','Trends'],['home','⌂','Home'],['profile','⚙','Profile']
+  ['diary','▤','Diary'],['recipes','▧','Recipes'],['home','⌂','Home'],['weight','⌁','Trends'],['profile','⚙','Profile']
  ].map(([id,icon,label])=>`<button type="button" data-tab="${id}" aria-label="${label}"><span class="ico">${icon}</span>${label}</button>`).join('');
 
  // Reorganize the existing calendar, trend, and water widgets without recreating their logic.
@@ -1274,7 +1267,6 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
  const waterCard=$('mjWaterTracker');
  if(calendarCard)trends.insertBefore(calendarCard,trends.firstChild);
  if(trendCard)trends.insertBefore(trendCard,calendarCard?.nextSibling||trends.firstChild);
- if(waterCard)meals.appendChild(waterCard);
 
  // Keep old home data targets in the DOM for the existing renderer, but hide the old dashboard.
  const oldHome=[...home.children];
@@ -1299,7 +1291,7 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
  const foodLibrary=$('mjFoodLibrary')?.closest('.card');
  if(foodLibrary)foodLibrary.classList.add('legacy-hidden');
  const recipeBuilder=$('mjRecipeName')?.closest('.card')||$('mjRecipeList')?.closest('.card');
- if(recipeBuilder){const h=make('div','section-head','<h2>Recipe builder</h2><small>Create and save your own</small>');meals.appendChild(h);meals.appendChild(recipeBuilder)}
+ if(recipeBuilder){const h=make('div','section-head','<h2>Recipe builder</h2><small>Create and save your own</small>');recipes.appendChild(h);recipes.appendChild(recipeBuilder)}
  const grocery=$('crumbGroceryTools');
  if(grocery){const h=make('div','section-head','<h2>Grocery scanner</h2><small>Scan or enter a product</small>');meals.appendChild(h);meals.appendChild(grocery)}
 
@@ -1333,7 +1325,8 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
  if(calendarCard)calendarCard.classList.remove('legacy-hidden');
 
  // Remove streak UI and move Daily Check-In onto Home.
- $('mjStreakCard')?.classList.add('legacy-hidden');
+ const streakCard=$('mjStreakCard');
+ if(streakCard){streakCard.classList.remove('legacy-hidden','hidden');newHome.appendChild(streakCard);}
  const checkInCard=$('mjMood')?.closest('.card');
  if(checkInCard)newHome.appendChild(checkInCard);
 
@@ -1373,6 +1366,10 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
  const appearanceCard=darkToggle?.closest('.card');
  if(appearanceCard && nameInput?.closest('.card')!==appearanceCard)appearanceCard.classList.add('legacy-hidden');
  if(darkToggle)darkToggle.addEventListener('change',()=>document.body.classList.toggle('mj-dark',darkToggle.checked));
+ settings.querySelectorAll('.card').forEach(card=>{
+  const heading=card.querySelector('h3,h2');
+  if(heading&&heading.textContent.trim()==='Appearance')card.remove();
+ });
  const savedDark=localStorage.getItem('mj_dark_v1')==='true';
  document.body.classList.toggle('mj-dark',savedDark);
  if(darkToggle)darkToggle.checked=savedDark;
@@ -1386,6 +1383,7 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
  // Restore Data Management and nest FoodBase settings inside it.
  const oldDataCard=$('exportBtn')?.closest('.card');
  const apiCard=$('foodBaseKey')?.closest('.card');
+ const usdaCard=$('usdaApiKey')?.closest('.card');
  if(oldDataCard){
   oldDataCard.classList.remove('legacy-hidden');
   const heading=oldDataCard.querySelector('h3');
@@ -1397,6 +1395,15 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
     if(child.tagName!=='H3')details.appendChild(child);
    });
    apiCard.remove();
+   oldDataCard.appendChild(details);
+  }
+  if(usdaCard){
+   const details=make('details','settings-details');
+   details.innerHTML='<summary>USDA FoodData Central API key settings</summary>';
+   [...usdaCard.children].forEach(child=>{
+    if(child.tagName!=='H3')details.appendChild(child);
+   });
+   usdaCard.remove();
    oldDataCard.appendChild(details);
   }
  }
