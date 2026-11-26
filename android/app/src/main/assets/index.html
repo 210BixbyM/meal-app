@@ -459,7 +459,7 @@ function renderNaturalReview(){
     <p class="muted">${esc(item.food)}</p>
     ${item.matches?.length ?
      `<label>Database match</label><select data-match="${i}">${item.matches.map((x,j)=>`<option value="${j}" ${j===(item.choice||0)?'selected':''}>${esc(x.name)} — ${esc(x.source||x.brand||'Database')}</option>`).join('')}</select>
-      <p>${fmtNum(f?.calories||0)} kcal · Protein ${fmtNum(f?.protein||0)} g · Carbs ${fmtNum(f?.carbs||0)} g · Fat ${fmtNum(f?.fat||0)} g · Fibre ${fmtNum(f?.fiber||0)} g per 100 g</p>
+      <p>${nutritionForGrams(f,item.grams)}</p>
       ${f?.servingOptions?.length ? `<label>Household portion</label><select data-portion="${i}"><option value="">Keep estimated amount</option>${f.servingOptions.map((x,j)=>`<option value="${j}">${esc(x.label)} · ${fmtNum(x.grams)} g</option>`).join('')}</select>` : ''}` :
      '<p class="muted">No database match found. Try changing the food description.</p>'}
     <label>Estimated amount (grams)</label>
@@ -554,6 +554,13 @@ function groceryAsFood(item){
  }
  return out;
 }
+function nutritionForGrams(f, grams){
+ const factor=Number(grams)/100;
+ const value=k=>f[k]==null?'—':fmtNum(Number(f[k])*factor);
+ return 'For '+fmtNum(grams)+' g: '+value('calories')+' kcal · Protein '+value('protein')+
+  ' g · Carbs '+value('carbs')+' g · Fat '+value('fat')+' g · Fibre '+value('fiber')+' g';
+}
+
 window.onFoodSearch=(raw,error)=>{
  let list=[];
  try{list=JSON.parse(raw)}catch{}
@@ -581,7 +588,28 @@ window.onFoodSearch=(raw,error)=>{
   box.textContent='No results found. Try another search.';
   return;
  }
- box.innerHTML=list.map((f,i)=>`<div class="entry"><strong>${esc(f.name)}</strong><p class="muted">${esc(f.brand||f.source)} · per 100 g</p><p>${f.calories==null?'Nutrition not fully available':fmtNum(f.calories)+' kcal'} · Protein ${f.protein==null?'—':fmtNum(f.protein)+' g'} · Carbs ${f.carbs==null?'—':fmtNum(f.carbs)+' g'} · Fat ${f.fat==null?'—':fmtNum(f.fat)+' g'} · Fibre ${f.fiber==null?'—':fmtNum(f.fiber)+' g'}</p><button class="btn secondary" type="button" onclick="useFoodResult(${i})">Add to this meal</button></div>`).join('');
+ box.innerHTML=list.map((f,i)=>{
+  const portions=Array.isArray(f.servingOptions)?f.servingOptions:[];
+  const grams=portions.length&&Number(portions[0].grams)>0?Number(portions[0].grams):100;
+  const options=portions.length
+   ?portions.map((p,j)=>`<option value="${Number(p.grams)}" ${j===0?'selected':''}>${esc(p.label)} (${fmtNum(p.grams)} g)</option>`).join('')
+   :'<option value="100">100 g</option>';
+  return `<div class="entry">
+   <strong>${esc(f.name)}</strong>
+   <p class="muted">${esc(f.brand||f.source||'Food database')}</p>
+   <label>Serving size</label>
+   <select data-search-portion="${i}">${options}</select>
+   <p data-search-nutrition="${i}">${nutritionForGrams(f,grams)}</p>
+   <button class="btn secondary" type="button" onclick="useFoodResult(${i},Number(this.parentElement.querySelector('[data-search-portion]').value))">Add to this meal</button>
+  </div>`;
+ }).join('');
+ box.querySelectorAll('[data-search-portion]').forEach(select=>{
+  select.onchange=()=>{
+   const f=list[Number(select.dataset.searchPortion)];
+   const output=box.querySelector('[data-search-nutrition="'+select.dataset.searchPortion+'"]');
+   if(f&&output)output.textContent=nutritionForGrams(f,Number(select.value));
+  };
+ });
 };
 window._selectedFoodNutrition=null;
 window._manualNutritionFields=new Set();
@@ -602,7 +630,7 @@ $('foodPortionSelect').addEventListener('change',()=>{
  $('servingGrams').value=String(grams);
  window.applyServingNutrition();
 });
-window.useFoodResult=i=>{
+window.useFoodResult=(i,selectedGrams)=>{
  const f=window.foodSearchItems?.[i];if(!f)return;
  $('foodPortionWrap').style.display='none';
  $('foodPortionSelect').innerHTML='<option value="">Choose a serving size</option>';
@@ -624,8 +652,9 @@ window.useFoodResult=i=>{
    $('foodPortionSelect').appendChild(option);
   });
   $('foodPortionWrap').style.display='block';
-  $('foodPortionSelect').selectedIndex=1;
-  $('servingGrams').value=String(portions[0].grams);
+  const chosen=portions.find(p=>Number(p.grams)===Number(selectedGrams))||portions[0];
+  $('foodPortionSelect').value=String(chosen.grams);
+  $('servingGrams').value=String(chosen.grams);
   $('foodPortionInfo').textContent='Choose a serving size to update the nutrition values.';
  }else{
   $('foodPortionInfo').textContent='No household serving sizes listed. Using 100 g.';
