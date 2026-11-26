@@ -48,5 +48,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Crumb-15.1.1-APK
-          path: android/app/build/outputs/apk/release/Crumb-15.1.1.apk
+          path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
