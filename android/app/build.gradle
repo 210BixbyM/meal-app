@@ -10,8 +10,8 @@ android {
         applicationId 'com.example.crumb'
         minSdk 23
         targetSdk 35
-        versionCode 27
-        versionName '15.1.1'
+        versionCode 28
+        versionName '15.2.0'
     }
 
     signingConfigs {

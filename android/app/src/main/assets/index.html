@@ -478,7 +478,8 @@ function renderNaturalReview(){
     <p class="muted">${esc(item.food)}</p>
     ${item.matches?.length ?
      `<label>Database match</label><select data-match="${i}">${item.matches.map((x,j)=>`<option value="${j}" ${j===(item.choice||0)?'selected':''}>${esc(x.name)} — ${esc(x.source||x.brand||'Database')}</option>`).join('')}</select>
-      <p>${fmtNum(f?.calories||0)} kcal · Protein ${fmtNum(f?.protein||0)} g · Carbs ${fmtNum(f?.carbs||0)} g · Fat ${fmtNum(f?.fat||0)} g · Fibre ${fmtNum(f?.fiber||0)} g per 100 g</p>` :
+      <p>${fmtNum(f?.calories||0)} kcal · Protein ${fmtNum(f?.protein||0)} g · Carbs ${fmtNum(f?.carbs||0)} g · Fat ${fmtNum(f?.fat||0)} g · Fibre ${fmtNum(f?.fiber||0)} g per 100 g</p>
+      ${f?.servingOptions?.length ? `<label>Household portion</label><select data-portion="${i}"><option value="">Keep estimated amount</option>${f.servingOptions.map((x,j)=>`<option value="${j}">${esc(x.label)} · ${fmtNum(x.grams)} g</option>`).join('')}</select>` : ''}` :
      '<p class="muted">No database match found. Try changing the food description.</p>'}
     <label>Estimated amount (grams)</label>
     <input type="number" min="1" step="1" data-grams="${i}" value="${Math.round(item.grams)}">
@@ -490,6 +491,15 @@ function renderNaturalReview(){
  box.querySelectorAll('[data-match]').forEach(el=>el.onchange=()=>{
   naturalItems[Number(el.dataset.match)].choice=Number(el.value);
   renderNaturalReview();
+ });
+ box.querySelectorAll('[data-portion]').forEach(el=>el.onchange=()=>{
+  const item=naturalItems[Number(el.dataset.portion)];
+  const f=item?.matches?.[item.choice||0];
+  const portion=f?.servingOptions?.[Number(el.value)];
+  if(portion && Number(portion.grams)>0){
+   item.grams=Number(portion.grams);
+   renderNaturalReview();
+  }
  });
  box.querySelectorAll('[data-grams]').forEach(el=>el.onchange=()=>{
   naturalItems[Number(el.dataset.grams)].grams=Math.max(1,Number(el.value)||1);
@@ -1162,6 +1172,11 @@ renderLibrary();renderRecipes();renderUnits();renderStreak();
       <label>Flavour / variant <input name="variant"></label>
       <label>Package size (g) <input name="packageGrams" type="number" min="0" step="any"></label>
       <label>Serving size (g) <input name="servingGrams" type="number" min="0" step="any"></label>
+      <label id="crumbServingOptionsLabel" hidden>Suggested household portions
+        <select name="servingChoice" id="crumbServingOptions">
+          <option value="">Choose a portion…</option>
+        </select>
+      </label>
       <label>Nutrition values are for
         <select name="basis">
           <option value="100g">Per 100 g</option>
@@ -1197,9 +1212,25 @@ renderLibrary();renderRecipes();renderUnits();renderStreak();
     for (const [key, value] of Object.entries(data)) {
       if (form.elements[key]) form.elements[key].value = value ?? '';
     }
+    const portionSelect = $('crumbServingOptions');
+    portionSelect.innerHTML = '<option value="">Choose a portion…</option>';
+    const portions = Array.isArray(data.servingOptions) ? data.servingOptions : [];
+    portions.forEach(portion => {
+      const option = document.createElement('option');
+      option.value = portion.grams;
+      option.textContent = portion.label + ' · ' + portion.grams + ' g';
+      portionSelect.appendChild(option);
+    });
+    $('crumbServingOptionsLabel').hidden = portions.length === 0;
     $('crumbReview').hidden = false;
     $('crumbReview').scrollIntoView({behavior:'smooth', block:'start'});
   }
+
+  $('crumbServingOptions').addEventListener('change', event => {
+    if (event.target.value) {
+      form.elements.servingGrams.value = event.target.value;
+    }
+  });
 
   function numberFrom(text, patterns) {
     for (const pattern of patterns) {
@@ -1335,7 +1366,7 @@ renderLibrary();renderRecipes();renderUnits();renderStreak();
             fat: p.fat ?? '',
             fiber: p.fiber ?? '',
             sugar: p.sugar ?? '',
-            sodium: p.sodium ?? ''
+            sodium: p.sodium ?? '',\n            servingOptions: p.servingOptions || []
           });
         } else {
           showReview(parseOCR(result));

@@ -165,6 +165,7 @@ public class MainActivity extends Activity {
                                 item.put("carbs", macros.has("carbs_g") && !macros.isNull("carbs_g") ? macros.get("carbs_g") : JSONObject.NULL);
                                 item.put("fat", macros.has("fat_g") && !macros.isNull("fat_g") ? macros.get("fat_g") : JSONObject.NULL);
                                 item.put("fiber", macros.has("fiber_g") && !macros.isNull("fiber_g") ? macros.get("fiber_g") : JSONObject.NULL);
+                                PriyanServingDatabase.enrich(MainActivity.this, item);
                                 results.put(item);
                             }
                         }
@@ -205,6 +206,7 @@ public class MainActivity extends Activity {
                                 item.put("sugar", JSONObject.NULL);
                                 item.put("satFat", JSONObject.NULL);
                                 item.put("sodium", JSONObject.NULL);
+                                PriyanServingDatabase.enrich(MainActivity.this, item);
                                 results.put(item);
                             }
                         }

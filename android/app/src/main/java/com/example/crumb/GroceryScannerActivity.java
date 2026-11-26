@@ -319,6 +319,7 @@ public class GroceryScannerActivity extends ComponentActivity {
                         normalized.put("satFat", macros.opt("saturated_fat_g"));
                         normalized.put("sodium", macros.opt("sodium_mg"));
 
+                        PriyanServingDatabase.enrich(this, normalized);
                         matchedProduct = normalized;
                         runOnUiThread(() -> showProductCard(normalized));
                         return;
@@ -402,7 +403,8 @@ public class GroceryScannerActivity extends ComponentActivity {
             else
                 normalized.put("sodium", JSONObject.NULL);
 
-            matchedProduct = normalized;
+            PriyanServingDatabase.enrich(this, normalized);
+                        matchedProduct = normalized;
             runOnUiThread(() -> showProductCard(normalized));
 
         } catch (Exception e) {
