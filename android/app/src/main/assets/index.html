@@ -110,9 +110,9 @@
       </div>
       <div class="card" style="padding:13px;margin:15px 0 8px;background:#f6faf6;box-shadow:none">
         <h3 style="font-size:.98rem;margin:0 0 5px">Search foods</h3>
-        <p class="muted" style="font-size:.8rem;margin:0 0 9px">Search FoodBase for foods and nutrition information. Nutrition values are shown per 100 g when available.</p>
+        <p class="muted" style="font-size:.8rem;margin:0 0 9px">Search the local food database for nutrition information and household serving sizes.</p>
         <input id="foodSearch" placeholder="Search e.g. banana, oats, yogurt">
-        <button class="btn secondary" type="button" id="searchFoodBtn" style="margin-top:8px;width:100%">Search food databases</button>
+        <button class="btn secondary" type="button" id="searchFoodBtn" style="margin-top:8px;width:100%">Search local food database</button>
         <div id="foodSearchResults" class="product"></div>
       </div>
       <label for="foods">What did you eat?</label><textarea id="foods" placeholder="Add foods in your own words…" required></textarea>
@@ -214,17 +214,6 @@
     <div class="actions"><button class="btn" id="exportBtn">Export backup</button><label class="btn secondary" for="importFile" style="margin:0;display:inline-flex;align-items:center">Import backup</label><input id="importFile" class="hidden" type="file" accept="application/json"></div>
     <div class="actions"><button class="btn warn" id="deleteAll">Delete all meal entries</button><button class="btn warn" id="deleteWeights">Delete weight entries</button></div>
   </div>
-  <div class="card" id="usdaSettingsCard">
-    <h3 style="margin:0 0 5px">USDA FoodData Central</h3>
-    <p class="muted" style="font-size:.83rem">Additional food search fallback. Leave blank to use the limited DEMO_KEY.</p>
-    <label for="usdaApiKey">USDA API key</label>
-    <input id="usdaApiKey" type="password" autocomplete="off" placeholder="Optional — DEMO_KEY used by default">
-    <div class="actions">
-      <button class="btn" id="saveUsdaApiKey">Save API key</button>
-      <a class="link" href="https://api.data.gov/signup/" target="_blank" rel="noopener">Get a free key</a>
-    </div>
-    <p class="muted" id="usdaApiKeyStatus"></p>
-  </div>
   <div class="card">
     <h3 style="margin:0 0 5px">FoodBase</h3>
     <p class="muted" style="font-size:.83rem">Food search and barcode lookup. Your API key is stored on this device.</p>
@@ -300,7 +289,7 @@
 <button class="btn secondary" type="button" id="mjSaveUnit">Save custom unit</button>
 <div id="mjCustomUnits"></div>
 </div>
-<div class="card"><h3 style="margin:0 0 5px">About Meal Journal</h3><p class="muted" style="font-size:.83rem;margin-bottom:0">Food search and barcode lookup use FoodBase. Database values can vary in completeness and accuracy. Meal photos and journal records are saved locally on this device.</p></div>
+<div class="card"><h3 style="margin:0 0 5px">About Meal Journal</h3><p class="muted" style="font-size:.83rem;margin-bottom:0">Manual food search uses the local database. Barcode lookup uses FoodBase and Open Food Facts. Database values can vary in completeness and accuracy. Meal photos and journal records are saved locally on this device.</p></div>
 </section>
 </main>
 </div>
@@ -424,15 +413,7 @@ $('saveFoodBaseKey').onclick=()=>{
  $('foodBaseKeyStatus').textContent=key?'FoodBase API key saved on this device.':'FoodBase API key cleared.';
 };
 $('foodBaseKey').value=localStorage.getItem('mealJournalFoodBaseKey')||'';
-$('saveUsdaApiKey').onclick=()=>{
- const key=$('usdaApiKey').value.trim();
- if(key)localStorage.setItem('mealJournalUsdaApiKey',key);
- else localStorage.removeItem('mealJournalUsdaApiKey');
- $('usdaApiKeyStatus').textContent=key?'USDA API key saved on this device.':'USDA will use DEMO_KEY.';
-};
-$('usdaApiKey').value=localStorage.getItem('mealJournalUsdaApiKey')||'';
-
-$('searchFoodBtn').onclick=()=>{const q=$('foodSearch').value.trim();if(!q){alert('Enter a food to search.');return}const box=$('foodSearchResults');box.className='product show';box.textContent='Searching food databases…';if(window.MealJournalAndroid&&MealJournalAndroid.searchFoods){MealJournalAndroid.searchFoods(q,localStorage.getItem('mealJournalFoodBaseKey')||'',localStorage.getItem('mealJournalUsdaApiKey')||'')}else{box.textContent='Food database search is available in the installed Android app.'}};
+$('searchFoodBtn').onclick=()=>{const q=$('foodSearch').value.trim();if(!q){alert('Enter a food to search.');return}const box=$('foodSearchResults');box.className='product show';box.textContent='Searching food databases…';if(window.MealJournalAndroid&&MealJournalAndroid.searchFoods){MealJournalAndroid.searchFoods(q)}else{box.textContent='Food database search is available in the installed Android app.'}};
 
 let naturalActive=false;
 let naturalQueue=[];
@@ -546,11 +527,7 @@ function searchNextNaturalFood(){
   searchNextNaturalFood();
   return;
  }
- MealJournalAndroid.searchFoods(
-  naturalCurrent.food,
-  localStorage.getItem('mealJournalFoodBaseKey')||'',
-  localStorage.getItem('mealJournalUsdaApiKey')||''
- );
+ MealJournalAndroid.searchFoods(naturalCurrent.food);
 }
 
 $('parseFoodBtn').onclick=()=>{
@@ -561,7 +538,7 @@ $('parseFoodBtn').onclick=()=>{
  naturalQueue=[...naturalItems];
  naturalActive=true;
  $('parsedFoodReview').className='product show';
- $('parsedFoodReview').textContent='Looking up foods in the databases…';
+ $('parsedFoodReview').textContent='Searching the local food database…';
  searchNextNaturalFood();
 };
 
@@ -590,7 +567,7 @@ window.onFoodSearch=(raw,error)=>{
  const box=$('foodSearchResults');
  if(error){
   box.className='product show';
-  box.textContent='FoodBase error: '+String(error);
+  box.textContent='Food database error: '+String(error);
   return;
  }
  const query=String($('foodSearch')?.value||'').trim().toLowerCase();
@@ -619,30 +596,6 @@ window.applyServingNutrition=()=>{
  }
 };
 $('servingGrams').addEventListener('input',()=>window.applyServingNutrition());
-window._foodPortionRequestId=null;
-window.onFoodPortions=(fdcId,raw,error)=>{
- if(String(fdcId)!==String(window._foodPortionRequestId))return;
- let portions=[];
- try{portions=JSON.parse(raw)}catch{}
- const wrap=$('foodPortionWrap'),select=$('foodPortionSelect');
- select.innerHTML='<option value="">Choose a serving size</option>';
- if(!portions.length){
-  wrap.style.display='none';
-  $('foodPortionInfo').textContent=error?'Serving sizes unavailable. Using 100 g.':'No measured portions listed. Using 100 g.';
-  return;
- }
- portions.forEach(portion=>{
-  const option=document.createElement('option');
-  option.value=String(portion.grams);
-  option.textContent=portion.label+' ('+fmtNum(portion.grams)+' g)';
-  select.appendChild(option);
- });
- wrap.style.display='block';
- select.selectedIndex=1;
- $('servingGrams').value=select.value;
- $('foodPortionInfo').textContent='Default serving selected. Change it to recalculate nutrition.';
- window.applyServingNutrition();
-};
 $('foodPortionSelect').addEventListener('change',()=>{
  const grams=Number($('foodPortionSelect').value);
  if(!Number.isFinite(grams)||grams<=0)return;
@@ -651,26 +604,34 @@ $('foodPortionSelect').addEventListener('change',()=>{
 });
 window.useFoodResult=i=>{
  const f=window.foodSearchItems?.[i];if(!f)return;
- window._foodPortionRequestId=f.fdcId||null;
  $('foodPortionWrap').style.display='none';
  $('foodPortionSelect').innerHTML='<option value="">Choose a serving size</option>';
  $('foodPortionInfo').textContent='';
  $('servingGrams').value='100';
- $('foods').value=($('foods').value?$('foods').value+'\n':'')+f.name;
+ $('foods').value=($('foods').value?'\n':'')+f.name;
  window._selectedFoodNutrition={};
  window._manualNutritionFields.clear();
  for(const key of ['calories','protein','carbs','fat','fiber','sugar','satFat','sodium']){
   const raw=f[key],value=Number(raw);
   window._selectedFoodNutrition[key]=raw==null||raw===''?null:(Number.isFinite(value)?value:null);
  }
- window.applyServingNutrition();
- if(f.fdcId&&window.MealJournalAndroid?.getFoodPortions){
-  window.MealJournalAndroid.getFoodPortions(String(f.fdcId),localStorage.getItem('mealJournalUsdaApiKey')||'');
- }else if(f.servingLabel){
-  $('foodPortionInfo').textContent='Serving information: '+f.servingLabel+'. Gram conversion unavailable.';
+ const portions=Array.isArray(f.servingOptions)?f.servingOptions:[];
+ if(portions.length){
+  portions.forEach(portion=>{
+   const option=document.createElement('option');
+   option.value=String(portion.grams);
+   option.textContent=portion.label+' ('+fmtNum(portion.grams)+' g)';
+   $('foodPortionSelect').appendChild(option);
+  });
+  $('foodPortionWrap').style.display='block';
+  $('foodPortionSelect').selectedIndex=1;
+  $('servingGrams').value=String(portions[0].grams);
+  $('foodPortionInfo').textContent='Choose a serving size to update the nutrition values.';
+ }else{
+  $('foodPortionInfo').textContent='No household serving sizes listed. Using 100 g.';
  }
-};
-$('userName').value=localStorage.getItem('mealJournalUserName')||'';
+ window.applyServingNutrition();
+};$('userName').value=localStorage.getItem('mealJournalUserName')||'';
 $('saveUserName').onclick=()=>{
  const name=$('userName').value.trim().slice(0,40);
  localStorage.setItem('mealJournalUserName',name);
@@ -1618,7 +1579,6 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
  // Restore Data Management and nest FoodBase settings inside it.
  const oldDataCard=$('exportBtn')?.closest('.card');
  const apiCard=$('foodBaseKey')?.closest('.card');
- const usdaCard=$('usdaApiKey')?.closest('.card');
  if(oldDataCard){
   oldDataCard.classList.remove('legacy-hidden');
   const heading=oldDataCard.querySelector('h3');
@@ -1630,15 +1590,6 @@ body.mj-dark .avatar{background:#321d2b;color:#ff8fc5}
     if(child.tagName!=='H3')details.appendChild(child);
    });
    apiCard.remove();
-   oldDataCard.appendChild(details);
-  }
-  if(usdaCard){
-   const details=make('details','settings-details');
-   details.innerHTML='<summary>USDA FoodData Central API key settings</summary>';
-   [...usdaCard.children].forEach(child=>{
-    if(child.tagName!=='H3')details.appendChild(child);
-   });
-   usdaCard.remove();
    oldDataCard.appendChild(details);
   }
  }
